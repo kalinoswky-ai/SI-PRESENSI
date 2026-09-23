@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
 import type { Employee } from "@/types";
-import { CheckCircle2, ScanFace } from "lucide-react";
+import { CheckCircle2, ScanFace, Clock, XCircle } from "lucide-react";
 
 export default function EmployeeDetailPage() {
   const params = useParams<{ id: string }>();
@@ -18,6 +18,9 @@ export default function EmployeeDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [reEnrolling, setReEnrolling] = useState(false);
   const [newCapture, setNewCapture] = useState<FaceCaptureResult | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [showRejectBox, setShowRejectBox] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -64,6 +67,26 @@ export default function EmployeeDetailPage() {
       setEmployee(data as Employee);
     }
     setSaving(false);
+  }
+
+  async function handleFaceReview(action: "approve" | "reject") {
+    setReviewing(true);
+    setError(null);
+    const res = await fetch(`/api/employees/${params.id}/face-enroll/review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, reason: action === "reject" ? rejectReason || null : undefined }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setError(json.error ?? "Gagal memproses verifikasi wajah.");
+    } else {
+      setShowRejectBox(false);
+      setRejectReason("");
+      const { data } = await supabase.from("employees").select("*").eq("id", params.id).single();
+      setEmployee(data as Employee);
+    }
+    setReviewing(false);
   }
 
   if (loading) return <p className="text-center text-sm text-slate-500">Memuat...</p>;
@@ -146,24 +169,99 @@ export default function EmployeeDetailPage() {
         {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
       </div>
 
+      {employee.face_enrollment_status === "pending" && employee.pending_photo_url && (
+        <div className="card space-y-4 border-amber-200 bg-amber-50/40">
+          <div className="flex items-center gap-2">
+            <Clock className="text-amber-600" size={20} />
+            <p className="font-semibold text-slate-800">Menunggu Verifikasi Wajah dari Pegawai</p>
+          </div>
+          <p className="text-sm text-slate-600">
+            Pegawai telah merekam wajahnya sendiri dan menunggu persetujuan Anda. Periksa foto di
+            bawah ini sebelum menyetujui.
+          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={employee.pending_photo_url}
+            alt="Foto wajah menunggu persetujuan"
+            className="mx-auto h-56 w-56 rounded-lg border border-slate-200 object-cover"
+          />
+
+          {!showRejectBox ? (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowRejectBox(true)}
+                disabled={reviewing}
+                className="btn-secondary flex-1"
+              >
+                Tolak
+              </button>
+              <button
+                onClick={() => handleFaceReview("approve")}
+                disabled={reviewing}
+                className="btn-primary flex-1"
+              >
+                {reviewing ? "Memproses..." : "Setujui"}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="label">Alasan penolakan (opsional, akan dilihat pegawai)</label>
+              <input
+                className="input"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Contoh: Foto buram, wajah tidak jelas terlihat"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowRejectBox(false)}
+                  disabled={reviewing}
+                  className="btn-secondary flex-1"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={() => handleFaceReview("reject")}
+                  disabled={reviewing}
+                  className="btn-primary flex-1 bg-red-600 hover:bg-red-700"
+                >
+                  {reviewing ? "Memproses..." : "Konfirmasi Tolak"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="card space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-slate-800">Data Wajah (Face Recognition)</p>
             <p className="text-sm text-slate-500">
-              {employee.face_descriptor ? "Wajah sudah terdaftar." : "Wajah belum terdaftar."}
+              {employee.face_enrollment_status === "approved" && "Wajah sudah terdaftar & disetujui."}
+              {employee.face_enrollment_status === "pending" && "Menunggu persetujuan (lihat kotak di atas)."}
+              {employee.face_enrollment_status === "rejected" && "Pendaftaran terakhir ditolak."}
+              {employee.face_enrollment_status === "none" && "Pegawai belum merekam wajah sendiri."}
             </p>
           </div>
           {employee.face_descriptor ? (
             <ScanFace className="text-emerald-500" size={22} />
+          ) : employee.face_enrollment_status === "rejected" ? (
+            <XCircle className="text-red-500" size={22} />
           ) : (
             <ScanFace className="text-amber-500" size={22} />
           )}
         </div>
 
+        <p className="text-xs text-slate-400">
+          Normalnya pegawai mendaftarkan wajahnya sendiri lewat menu &quot;Wajah Saya&quot; di akun
+          mereka. Tombol di bawah ini hanya untuk kondisi darurat (mis. Admin mendampingi pegawai
+          langsung di kantor).
+        </p>
+
         {!reEnrolling ? (
           <button onClick={() => setReEnrolling(true)} className="btn-secondary">
-            Daftarkan Ulang Wajah
+            Rekam Wajah Langsung (oleh Admin)
           </button>
         ) : (
           <div className="space-y-3">

@@ -6,7 +6,7 @@ export default async function EmployeesPage() {
   const supabase = createClient();
   const { data: employees } = await supabase
     .from("employees")
-    .select("id, nip, full_name, position, role, is_active, face_descriptor")
+    .select("id, nip, full_name, position, role, is_active, face_descriptor, face_enrollment_status")
     .order("full_name");
 
   return (
@@ -50,6 +50,10 @@ export default async function EmployeesPage() {
                 <td className="px-4 py-3">
                   {e.face_descriptor ? (
                     <ScanFace className="text-emerald-500" size={16} />
+                  ) : e.face_enrollment_status === "pending" ? (
+                    <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-600">
+                      Menunggu
+                    </span>
                   ) : (
                     <span className="text-xs text-amber-600">Belum</span>
                   )}

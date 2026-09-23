@@ -46,6 +46,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     .update({
       face_descriptor: JSON.parse(descriptorRaw),
       ...(photoUrl ? { photo_url: photoUrl } : {}),
+      face_enrollment_status: "approved",
+      pending_face_descriptor: null,
+      pending_photo_url: null,
+      face_rejection_reason: null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", params.id);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useGeolocation } from "@/lib/useGeolocation";
 import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
@@ -8,7 +9,7 @@ import ServerClock from "@/components/ServerClock";
 import { distanceInMeters, formatWita } from "@/lib/geo";
 import type { AttendanceRecord, Employee, LeaveRequest, Office } from "@/types";
 import { LEAVE_TYPE_LABEL } from "@/types";
-import { CheckCircle2, MapPin, XCircle, LogIn, LogOut, CalendarClock } from "lucide-react";
+import { CheckCircle2, MapPin, XCircle, LogIn, LogOut, CalendarClock, ScanFace } from "lucide-react";
 
 type Step = "idle" | "locating" | "capturing" | "submitting" | "done";
 
@@ -160,7 +161,21 @@ export default function DashboardPage() {
       </div>
 
       {/* Flow absen */}
-      {todayLeave ? (
+      {!employee?.face_descriptor ? (
+        <div className="card flex items-center gap-3 border-amber-200 bg-amber-50 text-center">
+          <ScanFace className="shrink-0 text-amber-600" size={28} />
+          <p className="text-sm text-amber-800">
+            {employee?.face_enrollment_status === "pending"
+              ? "Wajah Anda sudah dikirim dan sedang menunggu persetujuan Admin sebelum bisa absen."
+              : employee?.face_enrollment_status === "rejected"
+                ? "Pendaftaran wajah Anda ditolak Admin. Silakan rekam ulang di menu Wajah Saya."
+                : "Anda belum mendaftarkan wajah. Rekam wajah dulu di menu Wajah Saya sebelum bisa absen."}{" "}
+            <Link href="/dashboard/face-enrollment" className="font-semibold underline">
+              Buka Wajah Saya
+            </Link>
+          </p>
+        </div>
+      ) : todayLeave ? (
         <div className="card flex items-center gap-3 border-brand-200 bg-brand-50 text-center">
           <CalendarClock className="shrink-0 text-brand-600" size={28} />
           <p className="text-sm text-brand-800">

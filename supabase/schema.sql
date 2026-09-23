@@ -253,6 +253,25 @@ create policy "leave_attachments_select_own_or_admin" on storage.objects
   );
 
 -- ============================================================================
+-- MIGRASI: Pendaftaran wajah mandiri oleh pegawai + persetujuan manual admin
+-- Pegawai merekam wajahnya sendiri lewat halaman /dashboard/face-enrollment,
+-- tersimpan sementara di kolom pending_* — TIDAK langsung dipakai untuk absensi.
+-- face_descriptor (kolom lama, dipakai saat validasi absen) hanya terisi/berubah
+-- setelah admin menekan tombol "Setujui" di halaman Kelola Pegawai.
+-- ============================================================================
+alter table public.employees add column if not exists face_enrollment_status text not null default 'none'
+  check (face_enrollment_status in ('none', 'pending', 'approved', 'rejected'));
+alter table public.employees add column if not exists pending_face_descriptor jsonb;
+alter table public.employees add column if not exists pending_photo_url text;
+alter table public.employees add column if not exists face_rejection_reason text;
+
+-- Migrasi data lama: pegawai yang sudah punya face_descriptor (didaftarkan admin sebelumnya)
+-- otomatis dianggap sudah 'approved' agar tidak perlu approval ulang.
+update public.employees
+set face_enrollment_status = 'approved'
+where face_descriptor is not null and face_enrollment_status = 'none';
+
+-- ============================================================================
 -- MIGRASI: NIP opsional untuk akun admin
 -- (unique constraint tetap berlaku untuk baris yang NIP-nya diisi;
 --  Postgres mengizinkan banyak baris dengan nip NULL secara bersamaan)

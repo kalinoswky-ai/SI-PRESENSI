@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
-import { CheckCircle2 } from "lucide-react";
+import { ScanFace } from "lucide-react";
 
 export default function NewEmployeePage() {
   const router = useRouter();
@@ -17,7 +16,6 @@ export default function NewEmployeePage() {
     password: "",
     role: "employee",
   });
-  const [capture, setCapture] = useState<FaceCaptureResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -28,17 +26,10 @@ export default function NewEmployeePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-
-    if (!capture) {
-      setError("Wajib mengambil foto wajah pegawai untuk pendaftaran face recognition.");
-      return;
-    }
-
     setLoading(true);
+
     const formData = new FormData();
     Object.entries(form).forEach(([k, v]) => formData.append(k, v));
-    formData.append("descriptor", JSON.stringify(capture.descriptor));
-    formData.append("photo", capture.imageBlob, "photo.jpg");
 
     try {
       const res = await fetch("/api/employees/create", { method: "POST", body: formData });
@@ -138,19 +129,14 @@ export default function NewEmployeePage() {
           </div>
         </div>
 
-        <div className="border-t border-slate-100 pt-4">
-          <p className="label">Pendaftaran Wajah (Face Enrollment)</p>
-          <p className="mb-3 text-sm text-slate-500">
-            Ambil foto wajah pegawai secara jelas dan dari pencahayaan yang cukup — foto ini akan
-            menjadi data pembanding setiap kali pegawai melakukan absensi.
+        <div className="flex items-start gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+          <ScanFace className="mt-0.5 shrink-0 text-slate-400" size={20} />
+          <p className="text-sm text-slate-500">
+            Pendaftaran wajah <strong>tidak dilakukan di sini</strong>. Setelah akun ini login
+            pertama kali, pegawai merekam wajahnya sendiri lewat menu{" "}
+            <strong>Dashboard &gt; Wajah Saya</strong>, lalu Admin tinggal menyetujuinya di halaman
+            Kelola Pegawai sebelum pegawai bisa absen.
           </p>
-          {capture ? (
-            <p className="flex items-center gap-2 text-sm text-emerald-600">
-              <CheckCircle2 size={16} /> Wajah berhasil terekam.
-            </p>
-          ) : (
-            <FaceCamera onCapture={setCapture} captureLabel="Rekam Wajah Pegawai" />
-          )}
         </div>
 
         {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}

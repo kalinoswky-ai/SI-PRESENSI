@@ -1,4 +1,5 @@
 export type EmployeeRole = "employee" | "admin";
+export type FaceEnrollmentStatus = "none" | "pending" | "approved" | "rejected";
 
 export interface Employee {
   id: string;
@@ -10,6 +11,10 @@ export interface Employee {
   role: EmployeeRole;
   face_descriptor: number[] | null;
   photo_url: string | null;
+  face_enrollment_status: FaceEnrollmentStatus;
+  pending_face_descriptor: number[] | null;
+  pending_photo_url: string | null;
+  face_rejection_reason: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

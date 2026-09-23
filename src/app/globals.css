@@ -7,24 +7,42 @@ html, body {
 }
 
 body {
-  background-color: #f8fafc;
   color: #0f172a;
 }
 
+/* ===== App shell background — used on dashboard & admin pages ===== */
+.app-shell {
+  @apply min-h-screen bg-app-gradient bg-fixed;
+}
+
+/* ===== Glassmorphism primitives ===== */
+.glass-nav {
+  @apply sticky top-0 z-20 border-b border-white/40 bg-white/60 shadow-glass backdrop-blur-xl;
+}
+
+.glass-sidebar {
+  @apply border-white/40 bg-white/60 shadow-glass backdrop-blur-xl;
+}
+
+.glass-dark {
+  @apply border border-white/15 bg-white/10 shadow-glass-dark backdrop-blur-xl;
+}
+
+/* ===== Core components — restyled colorful + glass, shared across every page ===== */
 .btn-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 via-brand-500 to-emerald-600 px-4 py-2.5 font-medium text-white shadow-lg shadow-brand-600/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/60 bg-white/50 px-4 py-2.5 font-medium text-slate-700 backdrop-blur-md transition hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .card {
-  @apply rounded-xl border border-slate-200 bg-white p-6 shadow-sm;
+  @apply rounded-2xl border border-white/60 bg-white/70 p-6 shadow-glass backdrop-blur-xl;
 }
 
 .input {
-  @apply w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500;
+  @apply w-full rounded-xl border border-slate-300/70 bg-white/70 px-3 py-2.5 text-sm text-slate-900 backdrop-blur-md focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500;
 }
 
 .label {

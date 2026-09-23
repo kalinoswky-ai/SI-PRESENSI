@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -11,7 +12,6 @@ import {
   Users,
   Settings,
   LogOut,
-  ShieldCheck,
   MapPin,
   CalendarClock,
   Bell,
@@ -50,9 +50,18 @@ export default function AdminSidebar({ orgName }: { orgName: string }) {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
-        <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
-          <ShieldCheck className="text-brand-600" size={22} />
+      <aside className="glass-sidebar hidden w-64 shrink-0 flex-col border-r lg:flex">
+        <div className="flex items-center gap-2.5 border-b border-white/40 px-5 py-4">
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/70 p-1.5 shadow-sm">
+            <Image
+              src="/logo-sumba-barat.gif"
+              alt="Logo Kabupaten Sumba Barat"
+              width={32}
+              height={32}
+              className="h-full w-full object-contain"
+              unoptimized
+            />
+          </span>
           <div>
             <p className="text-sm font-bold leading-tight text-slate-900">Absensi Digital</p>
             <p className="text-xs leading-tight text-slate-500">{orgName}</p>
@@ -67,14 +76,20 @@ export default function AdminSidebar({ orgName }: { orgName: string }) {
                   href={link.href}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
                     isActive(link.href)
-                      ? "bg-brand-50 text-brand-700"
-                      : "text-slate-600 hover:bg-slate-50"
+                      ? "bg-gradient-to-r from-brand-600 to-emerald-600 text-white shadow-sm"
+                      : "text-slate-600 hover:bg-white/60"
                   }`}
                 >
                   <link.icon size={18} />
                   <span className="flex flex-col leading-tight">
                     <span>{link.label}</span>
-                    <span className="text-[11px] font-normal text-slate-400">{link.sublabel}</span>
+                    <span
+                      className={`text-[11px] font-normal ${
+                        isActive(link.href) ? "text-white/70" : "text-slate-400"
+                      }`}
+                    >
+                      {link.sublabel}
+                    </span>
                   </span>
                 </Link>
               </li>
@@ -82,7 +97,7 @@ export default function AdminSidebar({ orgName }: { orgName: string }) {
           </ul>
 
           <p className="mb-1 mt-6 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Settings <span className="normal-case text-slate-300">· Pengaturan</span>
+            Settings <span className="normal-case text-slate-400/70">· Pengaturan</span>
           </p>
           <ul className="space-y-0.5">
             {settingsLinks.map((link) => (
@@ -90,7 +105,7 @@ export default function AdminSidebar({ orgName }: { orgName: string }) {
                 <Link
                   href={link.href}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                    isSettingsActive ? "text-brand-700 hover:bg-brand-50" : "text-slate-600 hover:bg-slate-50"
+                    isSettingsActive ? "text-brand-700 hover:bg-white/60" : "text-slate-600 hover:bg-white/60"
                   }`}
                 >
                   <link.icon size={17} />
@@ -104,10 +119,10 @@ export default function AdminSidebar({ orgName }: { orgName: string }) {
           </ul>
         </nav>
 
-        <div className="border-t border-slate-100 p-3">
+        <div className="border-t border-white/40 p-3">
           <button
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-white/60"
           >
             <LogOut size={18} />
             Keluar
@@ -116,17 +131,26 @@ export default function AdminSidebar({ orgName }: { orgName: string }) {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="border-b border-slate-200 bg-white lg:hidden">
+      <header className="glass-nav lg:hidden">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2 font-semibold text-slate-800">
-            <ShieldCheck className="text-brand-600" size={20} />
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/70 p-1 shadow-sm">
+              <Image
+                src="/logo-sumba-barat.gif"
+                alt="Logo Kabupaten Sumba Barat"
+                width={24}
+                height={24}
+                className="h-full w-full object-contain"
+                unoptimized
+              />
+            </span>
             <span className="text-sm">Absensi Digital — Admin</span>
           </div>
           <button onClick={handleLogout} className="text-slate-500">
             <LogOut size={18} />
           </button>
         </div>
-        <nav className="flex gap-1 overflow-x-auto border-t border-slate-100 px-3 py-2">
+        <nav className="flex gap-1 overflow-x-auto border-t border-white/30 px-3 py-2">
           {[...mainLinks, { href: "/admin/settings", label: "Settings", sublabel: "", icon: Settings }].map(
             (link) => (
               <Link
@@ -134,7 +158,7 @@ export default function AdminSidebar({ orgName }: { orgName: string }) {
                 href={link.href}
                 className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                   isActive(link.href) || (link.href === "/admin/settings" && isSettingsActive)
-                    ? "bg-brand-50 text-brand-700"
+                    ? "bg-gradient-to-r from-brand-600 to-emerald-600 text-white"
                     : "text-slate-600"
                 }`}
               >

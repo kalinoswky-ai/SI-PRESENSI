@@ -1,9 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { LogOut, ShieldCheck, Home, Clock, CalendarDays, Briefcase, ScanFace } from "lucide-react";
+import { LogOut, Home, CalendarDays, Briefcase, ScanFace } from "lucide-react";
 
 const links = [
   { href: "/dashboard", label: "Beranda", sublabel: "Home / Time Clock", icon: Home },
@@ -25,10 +26,19 @@ export default function EmployeeNav({ title }: { title: string }) {
 
   return (
     <>
-      <header className="border-b border-slate-200 bg-white">
+      <header className="glass-nav">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2 font-semibold text-slate-800">
-            <ShieldCheck className="text-brand-600" size={22} />
+          <div className="flex items-center gap-2.5 font-semibold text-slate-800">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/70 p-1 shadow-sm">
+              <Image
+                src="/logo-sumba-barat.gif"
+                alt="Logo Kabupaten Sumba Barat"
+                width={28}
+                height={28}
+                className="h-full w-full object-contain"
+                unoptimized
+              />
+            </span>
             <span className="text-sm sm:text-base">{title}</span>
           </div>
 
@@ -39,8 +49,8 @@ export default function EmployeeNav({ title }: { title: string }) {
                 href={link.href}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
                   pathname === link.href
-                    ? "bg-brand-50 text-brand-700"
-                    : "text-slate-600 hover:bg-slate-50"
+                    ? "bg-gradient-to-r from-brand-600 to-emerald-600 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-white/60"
                 }`}
               >
                 <link.icon size={16} />
@@ -51,7 +61,7 @@ export default function EmployeeNav({ title }: { title: string }) {
 
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-white/60"
           >
             <LogOut size={16} />
             <span className="hidden sm:inline">Keluar</span>
@@ -59,8 +69,8 @@ export default function EmployeeNav({ title }: { title: string }) {
         </div>
       </header>
 
-      {/* Mobile bottom tab bar — mirrors the Jibble mobile app's Home / Timesheets / Time Off layout */}
-      <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t border-slate-200 bg-white sm:hidden">
+      {/* Mobile bottom tab bar */}
+      <nav className="glass-nav fixed inset-x-0 bottom-0 top-auto z-10 flex border-b-0 border-t sm:hidden">
         {links.map((link) => (
           <Link
             key={link.href}

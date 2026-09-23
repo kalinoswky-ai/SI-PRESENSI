@@ -6,8 +6,9 @@ import { useGeolocation } from "@/lib/useGeolocation";
 import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
 import ServerClock from "@/components/ServerClock";
 import { distanceInMeters, formatWita } from "@/lib/geo";
-import type { AttendanceRecord, Employee, Office } from "@/types";
-import { CheckCircle2, MapPin, XCircle, LogIn, LogOut } from "lucide-react";
+import type { AttendanceRecord, Employee, LeaveRequest, Office } from "@/types";
+import { LEAVE_TYPE_LABEL } from "@/types";
+import { CheckCircle2, MapPin, XCircle, LogIn, LogOut, CalendarClock } from "lucide-react";
 
 type Step = "idle" | "locating" | "capturing" | "submitting" | "done";
 
@@ -17,6 +18,7 @@ export default function DashboardPage() {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [office, setOffice] = useState<Office | null>(null);
   const [todayRecords, setTodayRecords] = useState<AttendanceRecord[]>([]);
+  const [todayLeave, setTodayLeave] = useState<LeaveRequest | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [step, setStep] = useState<Step>("idle");
@@ -31,7 +33,9 @@ export default function DashboardPage() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) return;
 
-      const [{ data: emp }, { data: off }, { data: att }] = await Promise.all([
+      const todayStr = new Date().toISOString().slice(0, 10);
+
+      const [{ data: emp }, { data: off }, { data: att }, { data: leave }] = await Promise.all([
         supabase.from("employees").select("*").eq("id", userData.user.id).single(),
         supabase.from("offices").select("*").limit(1).single(),
         supabase
@@ -40,11 +44,21 @@ export default function DashboardPage() {
           .eq("employee_id", userData.user.id)
           .gte("server_time", new Date(new Date().setHours(0, 0, 0, 0)).toISOString())
           .order("server_time", { ascending: true }),
+        supabase
+          .from("leave_requests")
+          .select("*")
+          .eq("employee_id", userData.user.id)
+          .eq("status", "approved")
+          .lte("start_date", todayStr)
+          .gte("end_date", todayStr)
+          .limit(1)
+          .maybeSingle(),
       ]);
 
       setEmployee(emp as Employee);
       setOffice(off as Office);
       setTodayRecords((att ?? []) as AttendanceRecord[]);
+      setTodayLeave((leave as LeaveRequest) ?? null);
       setLoading(false);
     }
     load();
@@ -146,7 +160,15 @@ export default function DashboardPage() {
       </div>
 
       {/* Flow absen */}
-      {validIn && validOut ? (
+      {todayLeave ? (
+        <div className="card flex items-center gap-3 border-brand-200 bg-brand-50 text-center">
+          <CalendarClock className="shrink-0 text-brand-600" size={28} />
+          <p className="text-sm text-brand-800">
+            Anda tercatat sedang <strong>{LEAVE_TYPE_LABEL[todayLeave.type]}</strong> hari ini
+            (disetujui Admin) sehingga tidak perlu melakukan absensi masuk/pulang.
+          </p>
+        </div>
+      ) : validIn && validOut ? (
         <div className="card text-center text-slate-600">
           Absensi hari ini sudah lengkap. Sampai jumpa besok! 👋
         </div>

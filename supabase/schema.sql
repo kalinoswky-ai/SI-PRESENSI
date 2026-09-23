@@ -159,3 +159,95 @@ where not exists (select 1 from public.offices);
 --
 -- insert into public.employees (id, nip, full_name, email, role, is_active)
 -- values ('UUID-USER-DARI-AUTH', '000000000000000000', 'Nama Admin', 'admin@sumbabaratkab.go.id', 'admin', true);
+
+-- ============================================================================
+-- MIGRASI TAMBAHAN — jalankan sekali di SQL Editor (aman dijalankan berulang,
+-- semua perintah memakai IF NOT EXISTS / ON CONFLICT):
+--  1. Nomor WhatsApp pegawai (untuk notifikasi pribadi keterlambatan)
+--  2. Pengaturan Notifikasi WhatsApp/Telegram + Integrasi Laporan Otomatis BKPSDM
+--     (disimpan di tabel offices yang sudah ada, sebagai tabel pengaturan tunggal)
+--  3. Tabel leave_requests (Cuti/Izin/Sakit) beserta RLS & bucket lampiran
+-- ============================================================================
+
+-- ---------- employees: nomor WhatsApp pribadi (opsional) ----------
+alter table public.employees add column if not exists phone text;
+
+-- ---------- offices: pengaturan notifikasi & integrasi BKPSDM ----------
+alter table public.offices add column if not exists wa_notify_enabled boolean not null default false;
+alter table public.offices add column if not exists wa_provider text not null default 'fonnte'; -- 'fonnte' | 'wablas' | 'other' (generic HTTP API bertoken)
+alter table public.offices add column if not exists wa_api_token text;
+alter table public.offices add column if not exists wa_admin_numbers text; -- nomor admin/pengawas, pisahkan dengan koma, format 62xxxxxxxxxx
+alter table public.offices add column if not exists wa_notify_employee boolean not null default true; -- kirim juga ke nomor pegawai ybs jika ada
+
+alter table public.offices add column if not exists telegram_notify_enabled boolean not null default false;
+alter table public.offices add column if not exists telegram_bot_token text;
+alter table public.offices add column if not exists telegram_chat_id text; -- id grup/channel pengawas
+
+alter table public.offices add column if not exists bkpsdm_report_enabled boolean not null default false;
+alter table public.offices add column if not exists bkpsdm_report_email text; -- email tujuan (dikirim via Resend)
+alter table public.offices add column if not exists bkpsdm_webhook_url text; -- opsional: endpoint/webhook BKPSDM atau Zapier/Make
+alter table public.offices add column if not exists bkpsdm_report_schedule text not null default 'monthly'; -- 'daily' | 'weekly' | 'monthly'
+alter table public.offices add column if not exists bkpsdm_last_sent_at timestamptz;
+
+-- ---------- TABLE: leave_requests (Cuti / Izin / Sakit) ----------
+create table if not exists public.leave_requests (
+  id uuid primary key default gen_random_uuid(),
+  employee_id uuid not null references public.employees(id) on delete cascade,
+  type text not null check (type in ('cuti', 'izin', 'sakit')),
+  start_date date not null,
+  end_date date not null,
+  reason text not null,
+  attachment_url text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  reviewed_by uuid references public.employees(id),
+  reviewed_at timestamptz,
+  review_note text,
+  created_at timestamptz not null default now(),
+  constraint leave_dates_valid check (end_date >= start_date)
+);
+
+create index if not exists idx_leave_employee on public.leave_requests (employee_id, start_date desc);
+create index if not exists idx_leave_status on public.leave_requests (status);
+
+alter table public.leave_requests enable row level security;
+
+-- pegawai boleh baca pengajuan miliknya sendiri; admin boleh baca semua
+drop policy if exists "leave_select_own_or_admin" on public.leave_requests;
+create policy "leave_select_own_or_admin" on public.leave_requests
+  for select using (employee_id = auth.uid() or public.is_admin());
+
+-- pegawai boleh mengajukan cuti/izin untuk dirinya sendiri, hanya berstatus pending
+drop policy if exists "leave_insert_own" on public.leave_requests;
+create policy "leave_insert_own" on public.leave_requests
+  for insert with check (employee_id = auth.uid() and status = 'pending');
+
+-- hanya admin boleh mengubah (approve/reject) & menghapus pengajuan
+drop policy if exists "leave_admin_update" on public.leave_requests;
+create policy "leave_admin_update" on public.leave_requests
+  for update using (public.is_admin());
+
+drop policy if exists "leave_admin_delete" on public.leave_requests;
+create policy "leave_admin_delete" on public.leave_requests
+  for delete using (public.is_admin());
+
+-- catatan: pegawai TIDAK bisa mengubah/menghapus pengajuannya sendiri setelah dikirim
+-- (mencegah pegawai mengubah status approved/rejected sendiri) — hanya admin yang bisa.
+
+-- ---------- STORAGE: bucket lampiran cuti/izin (misal: surat dokter) ----------
+insert into storage.buckets (id, name, public)
+values ('leave-attachments', 'leave-attachments', false)
+on conflict (id) do nothing;
+
+drop policy if exists "leave_attachments_insert_own" on storage.objects;
+create policy "leave_attachments_insert_own" on storage.objects
+  for insert with check (
+    bucket_id = 'leave-attachments' and (auth.uid())::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "leave_attachments_select_own_or_admin" on storage.objects;
+create policy "leave_attachments_select_own_or_admin" on storage.objects
+  for select using (
+    bucket_id = 'leave-attachments' and (
+      (auth.uid())::text = (storage.foldername(name))[1] or public.is_admin()
+    )
+  );

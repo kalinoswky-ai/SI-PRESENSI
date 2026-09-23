@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { distanceInMeters, faceDistance, FACE_MATCH_THRESHOLD, isLateClockIn } from "@/lib/geo";
+import { notifyLateAttendance } from "@/lib/notifications/notify";
+import type { Office } from "@/types";
 
 export async function POST(request: NextRequest) {
   const supabase = createClient();
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
   // 1. Ambil profil pegawai + descriptor wajah terdaftar
   const { data: employee, error: employeeError } = await supabase
     .from("employees")
-    .select("id, full_name, face_descriptor, is_active")
+    .select("id, full_name, nip, position, phone, face_descriptor, is_active")
     .eq("id", userId)
     .single();
 
@@ -126,6 +128,12 @@ export async function POST(request: NextRequest) {
 
   if (insertError) {
     return NextResponse.json({ error: "Gagal menyimpan data absensi." }, { status: 500 });
+  }
+
+  // Notifikasi WhatsApp/Telegram jika pegawai terlambat absen masuk (valid & terlambat).
+  // Dijalankan best-effort — kegagalan notifikasi tidak pernah menggagalkan respons absensi.
+  if (status === "valid" && isLate) {
+    void notifyLateAttendance(employee, office as Office, serverTime);
   }
 
   return NextResponse.json({

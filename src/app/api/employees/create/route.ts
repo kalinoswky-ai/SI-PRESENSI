@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
   const fullName = formData.get("full_name") as string;
   const position = (formData.get("position") as string) || null;
   const email = formData.get("email") as string;
+  const phone = (formData.get("phone") as string) || null;
   const password = formData.get("password") as string;
   const role = ((formData.get("role") as string) || "employee") as "employee" | "admin";
   const descriptorRaw = formData.get("descriptor") as string | null;
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
     full_name: fullName,
     position,
     email,
+    phone,
     role,
     face_descriptor: faceDescriptor,
     photo_url: photoUrl,

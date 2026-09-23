@@ -3,6 +3,7 @@ import Navbar from "@/components/Navbar";
 const links = [
   { href: "/dashboard", label: "Absen" },
   { href: "/dashboard/history", label: "Riwayat Saya" },
+  { href: "/dashboard/leave", label: "Cuti/Izin" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

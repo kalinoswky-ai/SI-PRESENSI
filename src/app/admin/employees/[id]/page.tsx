@@ -100,6 +100,16 @@ export default function EmployeeDetailPage() {
             />
           </div>
           <div>
+            <label className="label">No. WhatsApp</label>
+            <input
+              type="tel"
+              className="input"
+              defaultValue={employee.phone ?? ""}
+              onBlur={(e) => e.target.value !== employee.phone && patch({ phone: e.target.value })}
+              placeholder="62812xxxxxxx"
+            />
+          </div>
+          <div>
             <label className="label">Role</label>
             <select
               className="input"

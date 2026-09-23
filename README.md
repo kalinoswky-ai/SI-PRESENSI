@@ -19,6 +19,17 @@ tergantung pihak ketiga.
   dengan filter tanggal dan pegawai.
 - **Dashboard Admin** — kelola pegawai, aktifkan/nonaktifkan akun, daftar/daftar ulang wajah,
   atur lokasi kantor & jam kerja (termasuk kebijakan Jumat hybrid).
+- **Cuti / Izin / Sakit** — pegawai dapat mengajukan cuti/izin/sakit lengkap dengan lampiran
+  (mis. surat dokter); admin menyetujui/menolak lewat menu **Admin → Cuti/Izin**. Pengajuan yang
+  disetujui otomatis membebaskan pegawai dari kewajiban absen pada tanggal tersebut.
+- **Notifikasi Keterlambatan (WhatsApp/Telegram)** — begitu ada absen masuk yang tercatat
+  terlambat, sistem otomatis mengirim pesan ke admin/pengawas (dan opsional ke pegawai ybs) lewat
+  WhatsApp (gateway token, mis. Fonnte) dan/atau Telegram (Bot API resmi & gratis). Diatur di
+  menu **Admin → Pengaturan**.
+- **Integrasi Laporan Otomatis ke BKPSDM** — sistem dapat membuat & mengirim rekap Excel secara
+  terjadwal (harian/mingguan/bulanan) lewat email dan/atau webhook custom (mis. endpoint BKPSDM,
+  Zapier/Make), dijalankan otomatis oleh Vercel Cron. Diatur di menu **Admin → Pengaturan**,
+  dengan tombol uji coba pengiriman manual.
 - **Biaya Rp 0,-** — Supabase & Vercel free tier cukup untuk skala ~100 pegawai.
 
 ## Stack Teknologi
@@ -27,14 +38,19 @@ tergantung pihak ketiga.
 - Supabase (Auth, Postgres + Row Level Security, Storage)
 - `face-api.js` (TensorFlow.js) — deteksi & pengenalan wajah berjalan di browser pegawai
 - `exceljs` — generate laporan .xlsx di server
+- Fonnte / Telegram Bot API — notifikasi WhatsApp & Telegram untuk keterlambatan
+- Resend — pengiriman email laporan otomatis ke BKPSDM
+- Vercel Cron — penjadwal laporan otomatis harian/mingguan/bulanan
 - Deploy: GitHub → Vercel (CI/CD otomatis setiap push)
 
 ## 1. Setup Supabase
 
 1. Buat project baru di [supabase.com](https://supabase.com) (gratis).
 2. Buka **SQL Editor**, jalankan seluruh isi file [`supabase/schema.sql`](supabase/schema.sql).
-   Ini akan membuat tabel `employees`, `offices`, `attendance`, kebijakan RLS, dan bucket Storage
-   (`selfies`, `profile-photos`).
+   Ini akan membuat tabel `employees`, `offices`, `attendance`, `leave_requests` (Cuti/Izin/Sakit),
+   kolom-kolom pengaturan notifikasi & integrasi BKPSDM di tabel `offices`, kebijakan RLS, dan
+   bucket Storage (`selfies`, `profile-photos`, `leave-attachments`). File ini aman dijalankan
+   ulang kapan saja (idempotent) jika Anda meng-update project dari versi lama.
 3. Buka **Authentication → Providers**, pastikan **Email** provider aktif. Nonaktifkan
    "Confirm email" jika ingin admin langsung membuat akun pegawai tanpa perlu verifikasi email
    (opsional, sesuai kebutuhan instansi).
@@ -109,7 +125,44 @@ Lalu di [vercel.com](https://vercel.com):
 3. Bagikan email + password awal ke masing-masing pegawai. Sarankan pegawai mengganti password
    lewat menu "Forgot password" Supabase Auth bila diaktifkan, atau melalui Admin.
 
-## Alur Penggunaan Harian (Pegawai)
+## 5. Setup Notifikasi Keterlambatan (Opsional)
+
+**WhatsApp (via Fonnte, gratis untuk skala kecil):**
+1. Daftar di [fonnte.com](https://fonnte.com), hubungkan nomor WhatsApp perangkat pengawas/admin,
+   catat **Token**-nya.
+2. Login sebagai Admin → **Pengaturan** → aktifkan "Notifikasi WhatsApp", tempel token, isi nomor
+   admin/pengawas (format `62xxxxxxxxxx`, pisahkan koma jika lebih dari satu).
+3. (Opsional) aktifkan "Kirim juga ke nomor pegawai" — pastikan nomor WA pegawai diisi di menu
+   **Admin → Pegawai → Kelola**.
+
+**Telegram (gratis & resmi):**
+1. Chat dengan [@BotFather](https://t.me/BotFather) di Telegram → `/newbot` → catat **Bot Token**.
+2. Tambahkan bot tersebut ke grup pengawas, lalu ambil **Chat ID** grup (mis. lewat
+   `https://api.telegram.org/bot<token>/getUpdates` setelah mengirim satu pesan apa saja di grup).
+3. Login sebagai Admin → **Pengaturan** → aktifkan "Notifikasi Telegram", isi Bot Token & Chat ID.
+
+Setelah diaktifkan, setiap absen masuk yang tercatat terlambat (melewati Jam Masuk Kerja di
+Pengaturan) otomatis mengirim notifikasi. Kegagalan pengiriman notifikasi **tidak pernah**
+membatalkan/menggagalkan absensi pegawai itu sendiri.
+
+## 6. Setup Integrasi Laporan Otomatis ke BKPSDM (Opsional)
+
+1. **Untuk kirim lewat email** — daftar gratis di [resend.com](https://resend.com), buat API key,
+   isi `RESEND_API_KEY` (dan opsional `RESEND_FROM_EMAIL` setelah verifikasi domain pengirim) di
+   Environment Variables Vercel/`.env.local`.
+2. **Untuk kirim lewat webhook** — jika BKPSDM/instansi Anda punya endpoint penerima (atau Anda
+   memakai perantara seperti Zapier/Make/Google Apps Script), catat URL-nya.
+3. Login sebagai Admin → **Pengaturan** → aktifkan "Laporan Otomatis", isi email tujuan dan/atau
+   webhook URL, pilih jadwal (Harian/Mingguan tiap Senin/Bulanan tiap tanggal 1).
+4. Klik **"Kirim Uji Coba Sekarang"** untuk memastikan email/webhook diterima dengan benar
+   sebelum mengandalkannya secara otomatis.
+5. Aktifkan **Vercel Cron** (sudah dikonfigurasi di [`vercel.json`](vercel.json), berjalan setiap
+   hari jam 06:00 WITA) — pada Vercel Hobby plan, Cron Jobs tersedia gratis dengan batas 1x/hari
+   per job, yang sudah sesuai kebutuhan di sini (endpoint sendiri yang memutuskan apakah hari itu
+   adalah jadwal kirim). Tambahkan `CRON_SECRET` di Environment Variables Vercel agar endpoint
+   `/api/reports/bkpsdm` tidak bisa dipanggil sembarang orang dari luar.
+
+## 7. Alur Penggunaan Harian (Pegawai)
 
 1. Buka aplikasi di HP saat tiba di kantor.
 2. Tekan **Absen Masuk** / **Absen Pulang**.
@@ -138,16 +191,26 @@ Lalu di [vercel.com](https://vercel.com):
 src/
   app/
     login/                    -> halaman login
-    dashboard/                -> area pegawai (absen, riwayat)
-    admin/                    -> area admin (pegawai, absensi, pengaturan)
+    dashboard/                -> area pegawai (absen, riwayat, cuti/izin)
+    admin/                    -> area admin (pegawai, absensi, cuti/izin, pengaturan)
     api/
-      attendance/clock/       -> proses absen (validasi geofence + wajah + simpan)
-      attendance/export/      -> generate laporan Excel
+      attendance/clock/       -> proses absen (validasi geofence + wajah + simpan + trigger notifikasi)
+      attendance/export/      -> generate laporan Excel (manual, oleh admin)
       employees/create/       -> admin membuat akun pegawai baru
       employees/[id]/         -> update data / re-enroll wajah pegawai
+      leave/create/           -> pegawai mengajukan cuti/izin/sakit
+      leave/[id]/             -> admin menyetujui/menolak pengajuan
+      leave/attachment/       -> signed URL lampiran cuti (privat)
+      reports/bkpsdm/         -> endpoint cron laporan otomatis terjadwal
+      reports/bkpsdm/test/    -> kirim uji coba laporan otomatis (dari menu Pengaturan)
   components/                 -> FaceCamera, ServerClock, Navbar
-  lib/                        -> supabase client/server/admin, helper geo & waktu
+  lib/
+    supabase/                 -> client/server/admin Supabase
+    notifications/            -> whatsapp.ts, telegram.ts, notify.ts (orkestrator), email.ts (Resend)
+    reports/                  -> attendanceWorkbook.ts (generator Excel), bkpsdmReport.ts (kirim + jadwal)
+    geo.ts, useGeolocation.ts -> helper geofencing, waktu WITA, deteksi keterlambatan
   types/                      -> tipe TypeScript
-supabase/schema.sql           -> skema database + RLS + storage buckets
+supabase/schema.sql           -> skema database + RLS + storage buckets (+ migrasi fitur baru)
+vercel.json                   -> jadwal Vercel Cron untuk laporan otomatis BKPSDM
 public/models/                -> model face-api.js (tinyFaceDetector, landmark68, recognition)
 ```

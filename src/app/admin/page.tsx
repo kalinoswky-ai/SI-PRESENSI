@@ -8,7 +8,7 @@ export default async function AdminOverviewPage() {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
-  const [{ count: totalEmployees }, { count: activeEmployees }, { data: todayAttendance }] =
+  const [{ count: totalEmployees }, { count: activeEmployees }, { data: todayAttendance }, { count: pendingLeave }] =
     await Promise.all([
       supabase.from("employees").select("*", { count: "exact", head: true }),
       supabase.from("employees").select("*", { count: "exact", head: true }).eq("is_active", true),
@@ -16,6 +16,7 @@ export default async function AdminOverviewPage() {
         .from("attendance")
         .select("id, type, status, is_late, employee_id")
         .gte("server_time", startOfDay.toISOString()),
+      supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
     ]);
 
   const todayIn = (todayAttendance ?? []).filter((r) => r.type === "in" && r.status === "valid");
@@ -54,6 +55,17 @@ export default async function AdminOverviewPage() {
         </div>
       )}
 
+      {(pendingLeave ?? 0) > 0 && (
+        <div className="card border-brand-200 bg-brand-50">
+          <p className="text-sm font-medium text-brand-800">
+            {pendingLeave} pengajuan cuti/izin menunggu persetujuan Anda.
+          </p>
+          <Link href="/admin/leave" className="text-sm font-medium text-brand-700 underline">
+            Tinjau pengajuan →
+          </Link>
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2">
         <Link href="/admin/employees/new" className="card block hover:border-brand-300">
           <p className="font-semibold text-slate-800">+ Tambah Pegawai Baru</p>
@@ -62,6 +74,14 @@ export default async function AdminOverviewPage() {
         <Link href="/admin/attendance" className="card block hover:border-brand-300">
           <p className="font-semibold text-slate-800">📊 Rekap & Export Excel</p>
           <p className="text-sm text-slate-500">Lihat & unduh laporan absensi untuk BKPSDM.</p>
+        </Link>
+        <Link href="/admin/leave" className="card block hover:border-brand-300">
+          <p className="font-semibold text-slate-800">🗓️ Kelola Cuti/Izin</p>
+          <p className="text-sm text-slate-500">Setujui/tolak pengajuan cuti, izin, dan sakit pegawai.</p>
+        </Link>
+        <Link href="/admin/settings" className="card block hover:border-brand-300">
+          <p className="font-semibold text-slate-800">🔔 Notifikasi & Integrasi</p>
+          <p className="text-sm text-slate-500">Atur notifikasi WA/Telegram & laporan otomatis BKPSDM.</p>
         </Link>
       </div>
     </div>

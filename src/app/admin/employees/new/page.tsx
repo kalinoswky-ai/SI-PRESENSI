@@ -13,6 +13,7 @@ export default function NewEmployeePage() {
     full_name: "",
     position: "",
     email: "",
+    phone: "",
     password: "",
     role: "employee",
   });
@@ -107,6 +108,19 @@ export default function NewEmployeePage() {
               value={form.email}
               onChange={(e) => update("email", e.target.value)}
             />
+          </div>
+          <div>
+            <label className="label">No. WhatsApp (opsional)</label>
+            <input
+              type="tel"
+              className="input"
+              value={form.phone}
+              onChange={(e) => update("phone", e.target.value)}
+              placeholder="62812xxxxxxx"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Dipakai untuk kirim notifikasi WhatsApp pribadi bila pegawai terlambat absen (opsional).
+            </p>
           </div>
           <div>
             <label className="label">Password Awal</label>

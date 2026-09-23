@@ -4,6 +4,7 @@ const links = [
   { href: "/admin", label: "Ringkasan" },
   { href: "/admin/employees", label: "Pegawai" },
   { href: "/admin/attendance", label: "Absensi" },
+  { href: "/admin/leave", label: "Cuti/Izin" },
   { href: "/admin/settings", label: "Pengaturan" },
 ];
 

@@ -91,6 +91,7 @@ export default async function AttendanceLogPage({
               <th className="px-4 py-3">Pegawai</th>
               <th className="px-4 py-3">Jenis</th>
               <th className="px-4 py-3">Waktu Server</th>
+              <th className="px-4 py-3">Mode</th>
               <th className="px-4 py-3">Jarak</th>
               <th className="px-4 py-3">Wajah</th>
               <th className="px-4 py-3">Status</th>
@@ -112,7 +113,18 @@ export default async function AttendanceLogPage({
                   )}
                 </td>
                 <td className="px-4 py-3 text-slate-600">{formatWita(new Date(r.server_time))}</td>
-                <td className="px-4 py-3 text-slate-600">{Math.round(r.distance_meters)}m</td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                      r.work_mode === "wfh" ? "bg-emerald-50 text-emerald-700" : "bg-brand-50 text-brand-700"
+                    }`}
+                  >
+                    {r.work_mode === "wfh" ? "WFH" : "WFO"}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-slate-600">
+                  {r.work_mode === "wfh" ? "-" : `${Math.round(r.distance_meters)}m`}
+                </td>
                 <td className="px-4 py-3 text-slate-600">
                   {r.face_match ? (
                     <CheckCircle2 className="text-emerald-500" size={16} />

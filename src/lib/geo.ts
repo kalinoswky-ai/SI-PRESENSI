@@ -59,6 +59,15 @@ export function witaDateKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Apakah tanggal/waktu tsb jatuh pada hari Jumat menurut WITA (Asia/Makassar). */
+export function isFridayWita(date: Date): boolean {
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Makassar",
+    weekday: "short",
+  }).format(date);
+  return weekday === "Fri";
+}
+
 /** Format durasi menit menjadi "Xh Ym" (mis. 8h 5m). Mengembalikan "-" bila 0/negatif. */
 export function formatDurationMinutes(totalMinutes: number): string {
   if (!totalMinutes || totalMinutes <= 0) return "-";

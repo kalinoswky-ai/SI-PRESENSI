@@ -65,7 +65,7 @@ export default function HistoryPage() {
             </div>
             <div className="flex items-center gap-1 text-xs text-slate-400">
               <Clock size={12} />
-              {Math.round(r.distance_meters)}m
+              {r.work_mode === "wfh" ? "WFH" : `${Math.round(r.distance_meters)}m`}
             </div>
           </div>
         ))}

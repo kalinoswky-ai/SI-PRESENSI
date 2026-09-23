@@ -6,10 +6,10 @@ import { createClient } from "@/lib/supabase/client";
 import { useGeolocation } from "@/lib/useGeolocation";
 import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
 import ServerClock from "@/components/ServerClock";
-import { distanceInMeters, formatWita } from "@/lib/geo";
-import type { AttendanceRecord, Employee, LeaveRequest, Office } from "@/types";
+import { distanceInMeters, formatWita, isFridayWita } from "@/lib/geo";
+import type { AttendanceRecord, Employee, LeaveRequest, Office, WorkMode } from "@/types";
 import { LEAVE_TYPE_LABEL } from "@/types";
-import { CheckCircle2, MapPin, XCircle, LogIn, LogOut, CalendarClock, ScanFace } from "lucide-react";
+import { CheckCircle2, MapPin, XCircle, LogIn, LogOut, CalendarClock, ScanFace, Building2, Home } from "lucide-react";
 
 type Step = "idle" | "locating" | "capturing" | "submitting" | "done";
 
@@ -21,6 +21,8 @@ export default function DashboardPage() {
   const [todayRecords, setTodayRecords] = useState<AttendanceRecord[]>([]);
   const [todayLeave, setTodayLeave] = useState<LeaveRequest | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isFriday, setIsFriday] = useState(false); // berdasarkan waktu SERVER (WITA)
+  const [chosenMode, setChosenMode] = useState<WorkMode | null>(null); // pilihan WFO/WFH utk absen masuk
 
   const [step, setStep] = useState<Step>("idle");
   const [pendingType, setPendingType] = useState<"in" | "out" | null>(null);
@@ -35,6 +37,14 @@ export default function DashboardPage() {
       if (!userData.user) return;
 
       const todayStr = new Date().toISOString().slice(0, 10);
+
+      // Hari Jumat ditentukan dari jam server, bukan jam HP pegawai
+      try {
+        const st = await fetch("/api/server-time").then((r) => r.json());
+        setIsFriday(isFridayWita(new Date(st.serverTime)));
+      } catch {
+        setIsFriday(isFridayWita(new Date()));
+      }
 
       const [{ data: emp }, { data: off }, { data: att }, { data: leave }] = await Promise.all([
         supabase.from("employees").select("*").eq("id", userData.user.id).single(),
@@ -69,7 +79,15 @@ export default function DashboardPage() {
   const validOut = todayRecords.find((r) => r.type === "out" && r.status === "valid");
   const nextType: "in" | "out" = !validIn ? "in" : "out";
 
-  function startClock(type: "in" | "out") {
+  // Pilihan WFO/WFH hanya muncul pada hari Jumat bila kebijakan Jumat hybrid aktif
+  const hybridToday = Boolean(office?.friday_hybrid) && isFriday;
+  // Mode kerja yang berlaku saat ini: absen pulang mengikuti mode absen masuk
+  const activeMode: WorkMode = validIn ? (validIn.work_mode === "wfh" ? "wfh" : "wfo") : (chosenMode ?? "wfo");
+  const isWfh = hybridToday && activeMode === "wfh";
+  const needModeChoice = hybridToday && !validIn && !chosenMode;
+
+  function startClock(type: "in" | "out", mode?: WorkMode) {
+    if (mode) setChosenMode(mode);
     setPendingType(type);
     setResultMsg(null);
     setCapture(null);
@@ -88,6 +106,7 @@ export default function DashboardPage() {
     formData.append("longitude", String(geo.position.longitude));
     formData.append("descriptor", JSON.stringify(capture.descriptor));
     formData.append("selfie", capture.imageBlob, "selfie.jpg");
+    formData.append("work_mode", isWfh ? "wfh" : "wfo");
 
     try {
       const res = await fetch("/api/attendance/clock", { method: "POST", body: formData });
@@ -100,7 +119,9 @@ export default function DashboardPage() {
       } else {
         setResultMsg({
           ok: true,
-          text: pendingType === "in" ? "Absen masuk berhasil dicatat." : "Absen pulang berhasil dicatat.",
+          text:
+            (pendingType === "in" ? "Absen masuk berhasil dicatat" : "Absen pulang berhasil dicatat") +
+            (isWfh ? " (WFH)." : "."),
         });
         setTodayRecords((prev) => [...prev, json.record]);
       }
@@ -112,6 +133,7 @@ export default function DashboardPage() {
   }
 
   function reset() {
+    setChosenMode(null);
     setStep("idle");
     setPendingType(null);
     setCapture(null);
@@ -188,15 +210,54 @@ export default function DashboardPage() {
           Absensi hari ini sudah lengkap. Sampai jumpa besok! 👋
         </div>
       ) : step === "idle" ? (
-        <div className="card text-center">
-          <p className="mb-4 text-slate-600">
-            {nextType === "in" ? "Silakan lakukan absen masuk." : "Silakan lakukan absen pulang."}
-          </p>
-          <button onClick={() => startClock(nextType)} className="btn-primary">
-            {nextType === "in" ? <LogIn size={18} /> : <LogOut size={18} />}
-            {nextType === "in" ? "Absen Masuk" : "Absen Pulang"}
-          </button>
-        </div>
+        needModeChoice ? (
+          <div className="card space-y-4 text-center">
+            <div>
+              <p className="font-semibold text-slate-800">Hari ini Jumat — pilih mode kerja Anda</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Pilih sebelum absen masuk. Pilihan ini juga berlaku untuk absen pulang hari ini.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                onClick={() => startClock("in", "wfo")}
+                className="flex flex-col items-center gap-1 rounded-xl border border-brand-100 bg-white/60 px-4 py-4 text-brand-900 transition hover:bg-white"
+              >
+                <Building2 size={26} />
+                <span className="font-semibold">WFO — Kerja di Kantor</span>
+                <span className="text-xs text-slate-500">Wajib berada dalam radius kantor (geofencing)</span>
+              </button>
+              <button
+                onClick={() => startClock("in", "wfh")}
+                className="flex flex-col items-center gap-1 rounded-xl border border-emerald-200 bg-white/60 px-4 py-4 text-emerald-800 transition hover:bg-white"
+              >
+                <Home size={26} />
+                <span className="font-semibold">WFH — Kerja dari Rumah</span>
+                <span className="text-xs text-slate-500">Absen dari rumah, tanpa batas radius kantor</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="card text-center">
+            {hybridToday && (
+              <p
+                className={`mx-auto mb-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                  isWfh ? "bg-emerald-100 text-emerald-700" : "bg-brand-100 text-brand-700"
+                }`}
+              >
+                {isWfh ? <Home size={14} /> : <Building2 size={14} />}
+                Mode hari ini: {isWfh ? "WFH (dari rumah)" : "WFO (di kantor)"}
+              </p>
+            )}
+            <p className="mb-4 text-slate-600">
+              {nextType === "in" ? "Silakan lakukan absen masuk." : "Silakan lakukan absen pulang."}
+            </p>
+            <button onClick={() => startClock(nextType)} className="btn-primary">
+              {nextType === "in" ? <LogIn size={18} /> : <LogOut size={18} />}
+              {nextType === "in" ? "Absen Masuk" : "Absen Pulang"}
+            </button>
+          </div>
+        )
       ) : step === "done" ? (
         <div className="card text-center">
           {resultMsg?.ok ? (
@@ -210,13 +271,22 @@ export default function DashboardPage() {
       ) : (
         <div className="card space-y-4">
           <div className="flex items-center gap-2 text-sm">
-            <MapPin size={16} className={withinGeofence ? "text-emerald-500" : "text-amber-500"} />
+            <MapPin size={16} className={isWfh || withinGeofence ? "text-emerald-500" : "text-amber-500"} />
             {geo.loading && <span className="text-slate-500">Mendapatkan lokasi GPS...</span>}
             {geo.error && <span className="text-red-600">{geo.error}</span>}
-            {distance !== null && (
-              <span className={withinGeofence ? "text-emerald-700" : "text-amber-600"}>
-                Jarak ke kantor: {Math.round(distance)}m {withinGeofence ? "(dalam radius)" : "(di luar radius)"}
-              </span>
+            {isWfh ? (
+              !geo.loading &&
+              !geo.error && (
+                <span className="text-emerald-700">
+                  Mode WFH — Anda boleh absen dari rumah, tidak perlu berada di radius kantor.
+                </span>
+              )
+            ) : (
+              distance !== null && (
+                <span className={withinGeofence ? "text-emerald-700" : "text-amber-600"}>
+                  Jarak ke kantor: {Math.round(distance)}m {withinGeofence ? "(dalam radius)" : "(di luar radius)"}
+                </span>
+              )
             )}
           </div>
 

@@ -122,6 +122,12 @@ Lalu di [vercel.com](https://vercel.com):
      **"Gunakan Lokasi Saat Ini"**.
    - Atur radius geofencing (default 150m), jam kerja (default 07:00–14:30 WITA), dan kebijakan
      Jumat hybrid.
+   - **Jumat Hybrid (WFO/WFH):** bila dicentang, pada hari Jumat pegawai memilih **WFO** atau **WFH**
+     sebelum absen masuk. WFO tetap wajib berada dalam radius kantor (geofencing); WFH boleh absen
+     dari rumah tanpa radius kantor (wajah tetap diverifikasi & lokasi GPS tetap dicatat). Absen
+     pulang otomatis mengikuti pilihan absen masuk. Absen masuk hari Jumat tidak dihitung terlambat.
+     Hari Jumat ditentukan dari jam server (WITA). Untuk database yang sudah berjalan, jalankan
+     `supabase/update-jumat-hybrid-wfh.sql` sekali di Supabase SQL Editor.
 2. **Admin → Pegawai → Tambah Pegawai**: input NIP, nama, jabatan, email, password awal, lalu
    ambil foto wajah pegawai (pencahayaan cukup, wajah menghadap kamera) untuk pendaftaran face
    recognition. Ulangi untuk seluruh 95 ASN.

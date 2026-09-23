@@ -50,8 +50,15 @@ create table if not exists public.attendance (
   status text not null check (status in ('valid', 'rejected')),
   reject_reason text,
   is_late boolean not null default false,
+  work_mode text not null default 'wfo' check (work_mode in ('wfo', 'wfh')), -- 'wfh' hanya utk Jumat hybrid
   created_at timestamptz not null default now()
 );
+
+-- Untuk database lama: tambahkan kolom work_mode bila belum ada
+alter table public.attendance add column if not exists work_mode text not null default 'wfo';
+do $$ begin
+  alter table public.attendance add constraint attendance_work_mode_check check (work_mode in ('wfo', 'wfh'));
+exception when duplicate_object then null; end $$;
 
 create index if not exists idx_attendance_employee_time on public.attendance (employee_id, server_time desc);
 create index if not exists idx_attendance_time on public.attendance (server_time desc);

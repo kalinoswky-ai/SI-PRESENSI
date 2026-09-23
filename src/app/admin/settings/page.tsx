@@ -225,8 +225,8 @@ export default function SettingsPage() {
             checked={office.friday_hybrid}
             onChange={(e) => update("friday_hybrid", e.target.checked)}
           />
-          Kebijakan Jumat Hybrid (WFO & WFH) — absensi masuk tidak dihitung terlambat pada hari
-          Jumat
+          Kebijakan Jumat Hybrid (WFO & WFH) — pada hari Jumat pegawai memilih WFO (tetap geofencing)
+          atau WFH (absen dari rumah tanpa radius kantor); absensi masuk tidak dihitung terlambat
         </label>
 
         {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}

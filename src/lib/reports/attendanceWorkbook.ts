@@ -20,6 +20,7 @@ export async function buildAttendanceWorkbook(records: AttendanceRecord[]) {
     { header: "Jabatan", key: "jabatan", width: 22 },
     { header: "Jenis", key: "jenis", width: 10 },
     { header: "Waktu (Server Clock, WITA)", key: "waktu", width: 26 },
+    { header: "Mode Kerja", key: "mode", width: 12 },
     { header: "Jarak dari Kantor (m)", key: "jarak", width: 18 },
     { header: "Wajah Sesuai", key: "wajah", width: 14 },
     { header: "Status", key: "status", width: 12 },
@@ -41,7 +42,8 @@ export async function buildAttendanceWorkbook(records: AttendanceRecord[]) {
       jabatan: r.employees?.position ?? "-",
       jenis: r.type === "in" ? "Masuk" : "Pulang",
       waktu: formatWita(new Date(r.server_time)),
-      jarak: Math.round(r.distance_meters),
+      mode: r.work_mode === "wfh" ? "WFH" : "WFO",
+      jarak: r.work_mode === "wfh" ? "-" : Math.round(r.distance_meters),
       wajah: r.face_match ? "Sesuai" : "Tidak Sesuai",
       status: r.status === "valid" ? "Valid" : "Ditolak",
       terlambat: r.is_late ? "Ya" : "-",
@@ -49,7 +51,7 @@ export async function buildAttendanceWorkbook(records: AttendanceRecord[]) {
     });
   });
 
-  sheet.autoFilter = { from: "A1", to: "K1" };
+  sheet.autoFilter = { from: "A1", to: "L1" };
 
   return workbook;
 }

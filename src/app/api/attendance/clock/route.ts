@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { distanceInMeters, faceDistance, FACE_MATCH_THRESHOLD, isLateClockIn } from "@/lib/geo";
+import {
+  distanceInMeters,
+  faceDistance,
+  FACE_MATCH_THRESHOLD,
+  isFridayWita,
+  isLateClockIn,
+  witaDateKey,
+} from "@/lib/geo";
 import { notifyLateAttendance } from "@/lib/notifications/notify";
-import type { Office } from "@/types";
+import type { Office, WorkMode } from "@/types";
 
 export async function POST(request: NextRequest) {
   const supabase = createClient();
@@ -19,6 +26,7 @@ export async function POST(request: NextRequest) {
   const longitude = parseFloat(formData.get("longitude") as string);
   const descriptorRaw = formData.get("descriptor") as string;
   const selfieFile = formData.get("selfie") as File | null;
+  const requestedMode: WorkMode = formData.get("work_mode") === "wfh" ? "wfh" : "wfo";
 
   if (
     !["in", "out"].includes(type) ||
@@ -68,7 +76,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Konfigurasi lokasi kantor belum diatur." }, { status: 500 });
   }
 
-  // 3. Validasi geofencing (dihitung ulang di server, tidak percaya klien)
+  // 5. Waktu server — SATU-SATUNYA sumber waktu yang dipercaya (bukan jam HP pegawai)
+  const serverTime = new Date();
+
+  // 3a. Tentukan mode kerja. WFH HANYA berlaku pada hari Jumat bila kebijakan Jumat hybrid aktif;
+  //     di hari lain selalu WFO (wajib geofencing) berapa pun yang dikirim klien.
+  const hybridFriday = Boolean(office.friday_hybrid) && isFridayWita(serverTime);
+  let workMode: WorkMode = "wfo";
+  if (hybridFriday) {
+    if (type === "in") {
+      workMode = requestedMode;
+    } else {
+      // Absen pulang mengikuti mode absen masuk hari ini (tidak bisa ganti mode di tengah hari)
+      const dayStart = `${witaDateKey(serverTime)}T00:00:00+08:00`;
+      const { data: todayIn } = await supabase
+        .from("attendance")
+        .select("work_mode")
+        .eq("employee_id", userId)
+        .eq("type", "in")
+        .eq("status", "valid")
+        .gte("server_time", dayStart)
+        .order("server_time", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      workMode = todayIn?.work_mode === "wfh" ? "wfh" : "wfo";
+    }
+  }
+
+  // 3b. Validasi geofencing (dihitung ulang di server, tidak percaya klien).
+  //     Jarak tetap dicatat untuk WFH, tetapi radius kantor hanya diwajibkan untuk WFO.
   const distance = distanceInMeters(latitude, longitude, office.latitude, office.longitude);
   const withinGeofence = distance <= office.radius_meters;
 
@@ -77,13 +113,10 @@ export async function POST(request: NextRequest) {
   const fDistance = faceDistance(capturedDescriptor, registeredDescriptor);
   const faceMatch = fDistance <= FACE_MATCH_THRESHOLD;
 
-  // 5. Waktu server — SATU-SATUNYA sumber waktu yang dipercaya (bukan jam HP pegawai)
-  const serverTime = new Date();
-
   let status: "valid" | "rejected" = "valid";
   let rejectReason: string | null = null;
 
-  if (!withinGeofence) {
+  if (workMode === "wfo" && !withinGeofence) {
     status = "rejected";
     rejectReason = `Lokasi di luar radius kantor (jarak ${Math.round(distance)}m, maksimal ${office.radius_meters}m).`;
   } else if (!faceMatch) {
@@ -122,6 +155,7 @@ export async function POST(request: NextRequest) {
       status,
       reject_reason: rejectReason,
       is_late: isLate,
+      work_mode: workMode,
     })
     .select()
     .single();
@@ -142,5 +176,6 @@ export async function POST(request: NextRequest) {
     rejectReason,
     distance: Math.round(distance),
     isLate,
+    workMode,
   });
 }

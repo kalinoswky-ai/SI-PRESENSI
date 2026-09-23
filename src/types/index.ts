@@ -55,6 +55,7 @@ export interface Office {
 
 export type AttendanceType = "in" | "out";
 export type AttendanceStatus = "valid" | "rejected";
+export type WorkMode = "wfo" | "wfh";
 
 export interface AttendanceRecord {
   id: string;
@@ -71,6 +72,7 @@ export interface AttendanceRecord {
   status: AttendanceStatus;
   reject_reason: string | null;
   is_late: boolean;
+  work_mode: WorkMode; // 'wfh' hanya mungkin pada hari Jumat (kebijakan hybrid)
   created_at: string;
   employees?: Pick<Employee, "full_name" | "nip" | "position">;
 }

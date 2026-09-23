@@ -33,20 +33,27 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (user && isAuthRoute) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
-  if (user && path.startsWith("/admin")) {
+  let role: string | undefined;
+  if (user && (isAuthRoute || isProtected)) {
     const { data: employee } = await supabase
       .from("employees")
       .select("role")
       .eq("id", user.id)
       .single();
+    role = employee?.role;
+  }
 
-    if (employee?.role !== "admin") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
-    }
+  if (user && isAuthRoute) {
+    return NextResponse.redirect(new URL(role === "admin" ? "/admin" : "/dashboard", request.url));
+  }
+
+  // Akun admin hanya mengontrol sistem — tidak melakukan absensi sendiri lewat /dashboard.
+  if (user && path.startsWith("/dashboard") && role === "admin") {
+    return NextResponse.redirect(new URL("/admin", request.url));
+  }
+
+  if (user && path.startsWith("/admin") && role !== "admin") {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   return response;

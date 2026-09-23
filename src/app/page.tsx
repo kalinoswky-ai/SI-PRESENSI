@@ -6,7 +6,12 @@ export default async function Home() {
   const { data } = await supabase.auth.getUser();
 
   if (data.user) {
-    redirect("/dashboard");
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("role")
+      .eq("id", data.user.id)
+      .single();
+    redirect(employee?.role === "admin" ? "/admin" : "/dashboard");
   }
   redirect("/login");
 }

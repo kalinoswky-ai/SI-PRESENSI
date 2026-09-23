@@ -1,10 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { useGeolocation } from "@/lib/useGeolocation";
 import type { Office } from "@/types";
 import { MapPin, Save, CheckCircle2, Send, MessageCircle, FileSpreadsheet } from "lucide-react";
+
+// Leaflet butuh akses `window`, jadi wajib dimuat hanya di browser (ssr: false)
+const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[320px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-400">
+      Memuat peta...
+    </div>
+  ),
+});
 
 export default function SettingsPage() {
   const supabase = createClient();
@@ -75,6 +86,12 @@ export default function SettingsPage() {
     geo.request();
   }
 
+  function handleMapChange(lat: number, lng: number) {
+    if (!office) return;
+    update("latitude", parseFloat(lat.toFixed(7)));
+    update("longitude", parseFloat(lng.toFixed(7)));
+  }
+
   async function handleTestBkpsdmReport() {
     setTestingReport(true);
     setTestResult(null);
@@ -131,6 +148,20 @@ export default function SettingsPage() {
           {geo.loading ? "Mendapatkan lokasi..." : "Gunakan Lokasi Saat Ini"}
         </button>
         {geo.error && <p className="text-sm text-red-600">{geo.error}</p>}
+
+        <div>
+          <label className="label">Klik/geser pin di peta untuk menentukan lokasi kantor</label>
+          <LocationPicker
+            latitude={office.latitude}
+            longitude={office.longitude}
+            radiusMeters={office.radius_meters}
+            onChange={handleMapChange}
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            Klik di titik mana pun pada peta, atau seret pin biru untuk memindahkannya. Lingkaran
+            biru menunjukkan radius geofencing saat ini.
+          </p>
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>

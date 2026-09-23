@@ -63,9 +63,11 @@ export default function NewEmployeePage() {
       <form onSubmit={handleSubmit} className="card space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label">NIP</label>
+            <label className="label">
+              NIP {form.role === "admin" && <span className="text-slate-400">(opsional untuk Admin)</span>}
+            </label>
             <input
-              required
+              required={form.role !== "admin"}
               className="input"
               value={form.nip}
               onChange={(e) => update("nip", e.target.value)}

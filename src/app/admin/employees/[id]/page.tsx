@@ -84,11 +84,16 @@ export default function EmployeeDetailPage() {
             />
           </div>
           <div>
-            <label className="label">NIP</label>
+            <label className="label">
+              NIP {employee.role === "admin" && <span className="text-slate-400">(opsional untuk Admin)</span>}
+            </label>
             <input
               className="input"
-              defaultValue={employee.nip}
-              onBlur={(e) => e.target.value !== employee.nip && patch({ nip: e.target.value })}
+              defaultValue={employee.nip ?? ""}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v !== (employee.nip ?? "")) patch({ nip: v || null });
+              }}
             />
           </div>
           <div>

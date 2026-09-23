@@ -2,7 +2,7 @@ export type EmployeeRole = "employee" | "admin";
 
 export interface Employee {
   id: string;
-  nip: string;
+  nip: string | null;
   full_name: string;
   position: string | null;
   email: string;

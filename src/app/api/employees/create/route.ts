@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   }
 
   const formData = await request.formData();
-  const nip = formData.get("nip") as string;
+  const nipRaw = (formData.get("nip") as string) || "";
   const fullName = formData.get("full_name") as string;
   const position = (formData.get("position") as string) || null;
   const email = formData.get("email") as string;
@@ -31,7 +31,12 @@ export async function POST(request: NextRequest) {
   const descriptorRaw = formData.get("descriptor") as string | null;
   const photo = formData.get("photo") as File | null;
 
-  if (!nip || !fullName || !email || !password) {
+  // NIP wajib untuk pegawai biasa, opsional untuk admin (admin hanya mengontrol sistem)
+  const nip = nipRaw.trim() || null;
+  if (role !== "admin" && !nip) {
+    return NextResponse.json({ error: "NIP wajib diisi untuk akun Pegawai." }, { status: 400 });
+  }
+  if (!fullName || !email || !password) {
     return NextResponse.json({ error: "Data pegawai tidak lengkap." }, { status: 400 });
   }
 

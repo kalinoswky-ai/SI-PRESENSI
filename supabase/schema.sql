@@ -251,3 +251,10 @@ create policy "leave_attachments_select_own_or_admin" on storage.objects
       (auth.uid())::text = (storage.foldername(name))[1] or public.is_admin()
     )
   );
+
+-- ============================================================================
+-- MIGRASI: NIP opsional untuk akun admin
+-- (unique constraint tetap berlaku untuk baris yang NIP-nya diisi;
+--  Postgres mengizinkan banyak baris dengan nip NULL secara bersamaan)
+-- ============================================================================
+alter table public.employees alter column nip drop not null;

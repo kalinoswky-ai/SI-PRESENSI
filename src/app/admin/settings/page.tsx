@@ -7,7 +7,7 @@ import { useGeolocation } from "@/lib/useGeolocation";
 import type { Office } from "@/types";
 import { MapPin, Save, CheckCircle2, Send, MessageCircle, FileSpreadsheet } from "lucide-react";
 
-// Leaflet butuh akses `window`, jadi wajib dimuat hanya di browser (ssr: false)
+// Leaflet (peta Esri) butuh akses `window`, jadi wajib dimuat hanya di browser (ssr: false)
 const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
   ssr: false,
   loading: () => (

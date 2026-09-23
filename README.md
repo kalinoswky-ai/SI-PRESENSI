@@ -114,9 +114,12 @@ Lalu di [vercel.com](https://vercel.com):
 ## 4. Konfigurasi Setelah Deploy
 
 1. Login sebagai Admin → **Pengaturan**:
-   - Berdiri di depan/dalam gedung Kantor Inspektorat, klik **"Gunakan Lokasi Saat Ini"** agar
-     koordinat GPS kantor terisi akurat (koordinat bawaan di `schema.sql` hanya perkiraan pusat
-     Kota Waikabubak, **wajib diperbarui**).
+   - Koordinat kantor bawaan sudah diisi dengan titik **Kantor Inspektorat Kabupaten Sumba Barat**
+     (-9.6366749, 119.4183576 — Plus Code 9C79+88Q). Bila database Anda sudah dibuat dengan
+     koordinat lama, jalankan `supabase/update-koordinat-kantor.sql` sekali di Supabase SQL Editor.
+   - Peta memakai **Esri** (gratis, tanpa API key/kartu kredit) dengan pilihan lapisan **Jalan / Satelit**.
+     Klik atau geser pin untuk menyesuaikan titik; atau berdiri di gedung lalu klik
+     **"Gunakan Lokasi Saat Ini"**.
    - Atur radius geofencing (default 150m), jam kerja (default 07:00–14:30 WITA), dan kebijakan
      Jumat hybrid.
 2. **Admin → Pegawai → Tambah Pegawai**: input NIP, nama, jabatan, email, password awal, lalu

@@ -144,12 +144,11 @@ drop policy if exists "profile_photos_public_read" on storage.objects;
 create policy "profile_photos_public_read" on storage.objects
   for select using (bucket_id = 'profile-photos');
 
--- ---------- SEED: baris default offices (SILAKAN UPDATE koordinat via Admin > Pengaturan) ----------
--- Koordinat di bawah adalah titik pusat Kota Waikabubak (perkiraan), BUKAN titik
--- persis gedung Kantor Inspektorat. WAJIB diperbaiki lewat Admin > Pengaturan
--- menggunakan koordinat GPS aktual di depan Kantor Inspektorat Sumba Barat.
+-- ---------- SEED: baris default offices ----------
+-- Koordinat = titik Kantor Inspektorat Kabupaten Sumba Barat (Google Maps, Plus Code 9C79+88Q).
+-- Bila perlu, bisa disesuaikan lagi lewat Admin > Pengaturan (klik/geser pin di peta).
 insert into public.offices (name, latitude, longitude, radius_meters, work_start, work_end, friday_hybrid)
-select 'Inspektorat Sumba Barat', -9.63583, 119.41306, 150, '07:00', '14:30', true
+select 'Inspektorat Sumba Barat', -9.6366749, 119.4183576, 150, '07:00', '14:30', true
 where not exists (select 1 from public.offices);
 
 -- ---------- SEED: akun admin pertama ----------

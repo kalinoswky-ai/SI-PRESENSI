@@ -1,18 +1,10 @@
-import Navbar from "@/components/Navbar";
-
-const links = [
-  { href: "/admin", label: "Ringkasan" },
-  { href: "/admin/employees", label: "Pegawai" },
-  { href: "/admin/attendance", label: "Absensi" },
-  { href: "/admin/leave", label: "Cuti/Izin" },
-  { href: "/admin/settings", label: "Pengaturan" },
-];
+import AdminSidebar from "@/components/AdminSidebar";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Navbar links={links} title="Absensi Digital — Admin" />
-      <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+    <div className="flex min-h-screen flex-col bg-slate-50 lg:flex-row">
+      <AdminSidebar orgName="Inspektorat Kab. Rote Ndao" />
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
     </div>
   );
 }

@@ -49,8 +49,8 @@ export default async function AdminOverviewPage() {
           <p className="text-sm font-medium text-amber-800">
             {todayRejected.length} percobaan absensi ditolak hari ini (lokasi/wajah tidak sesuai).
           </p>
-          <Link href="/admin/attendance" className="text-sm font-medium text-amber-700 underline">
-            Lihat detail di menu Absensi →
+          <Link href="/admin/attendance/log" className="text-sm font-medium text-amber-700 underline">
+            Lihat detail di Timesheets → Log Absensi →
           </Link>
         </div>
       )}
@@ -72,8 +72,12 @@ export default async function AdminOverviewPage() {
           <p className="text-sm text-slate-500">Daftarkan akun & wajah pegawai baru.</p>
         </Link>
         <Link href="/admin/attendance" className="card block hover:border-brand-300">
-          <p className="font-semibold text-slate-800">📊 Rekap & Export Excel</p>
-          <p className="text-sm text-slate-500">Lihat & unduh laporan absensi untuk BKPSDM.</p>
+          <p className="font-semibold text-slate-800">⏱️ Timesheets (Absensi)</p>
+          <p className="text-sm text-slate-500">Rekap jam kerja mingguan per pegawai & log mentah tiap absen.</p>
+        </Link>
+        <Link href="/admin/reports" className="card block hover:border-brand-300">
+          <p className="font-semibold text-slate-800">📊 Reports (Laporan) & Export Excel</p>
+          <p className="text-sm text-slate-500">Rekap kehadiran per pegawai & unduh laporan untuk BKPSDM.</p>
         </Link>
         <Link href="/admin/leave" className="card block hover:border-brand-300">
           <p className="font-semibold text-slate-800">🗓️ Kelola Cuti/Izin</p>

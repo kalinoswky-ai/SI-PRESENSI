@@ -108,9 +108,10 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-lg font-bold text-slate-900">Pengaturan Kantor & Geofencing</h1>
+      <h1 className="text-lg font-bold text-slate-900">Pengaturan</h1>
 
-      <div className="card space-y-4">
+      <div id="lokasi" className="card space-y-4 scroll-mt-24">
+        <h2 className="font-semibold text-slate-800">Lokasi &amp; Geofencing</h2>
         <div>
           <label className="label">Nama Kantor</label>
           <input
@@ -163,7 +164,10 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2">
+        <div id="jam-kerja" className="grid scroll-mt-24 gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <h2 className="font-semibold text-slate-800">Jam Kerja (Work Schedules)</h2>
+          </div>
           <div>
             <label className="label">Jam Masuk Kerja</label>
             <input
@@ -208,7 +212,7 @@ export default function SettingsPage() {
       </div>
 
       {/* ---------- Notifikasi Keterlambatan: WhatsApp ---------- */}
-      <div className="card space-y-4">
+      <div id="notifikasi" className="card scroll-mt-24 space-y-4">
         <div className="flex items-center gap-2">
           <MessageCircle className="text-emerald-600" size={20} />
           <h2 className="font-semibold text-slate-800">Notifikasi Keterlambatan — WhatsApp</h2>
@@ -308,7 +312,7 @@ export default function SettingsPage() {
       </div>
 
       {/* ---------- Integrasi Laporan Otomatis ke BKPSDM ---------- */}
-      <div className="card space-y-4">
+      <div id="integrasi" className="card scroll-mt-24 space-y-4">
         <div className="flex items-center gap-2">
           <FileSpreadsheet className="text-brand-600" size={20} />
           <h2 className="font-semibold text-slate-800">Integrasi Laporan Otomatis ke BKPSDM</h2>

@@ -45,6 +45,29 @@ export function formatWita(date: Date): string {
   }).format(date) + " WITA";
 }
 
+/** Kunci tanggal lokal WITA (YYYY-MM-DD) dari sebuah waktu server (UTC). */
+export function witaDateKey(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Makassar",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const y = parts.find((p) => p.type === "year")?.value;
+  const m = parts.find((p) => p.type === "month")?.value;
+  const d = parts.find((p) => p.type === "day")?.value;
+  return `${y}-${m}-${d}`;
+}
+
+/** Format durasi menit menjadi "Xh Ym" (mis. 8h 5m). Mengembalikan "-" bila 0/negatif. */
+export function formatDurationMinutes(totalMinutes: number): string {
+  if (!totalMinutes || totalMinutes <= 0) return "-";
+  const h = Math.floor(totalMinutes / 60);
+  const m = Math.round(totalMinutes % 60);
+  if (h === 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
 /**
  * Menentukan apakah waktu clock-in dianggap terlambat, berdasarkan jam kerja
  * kantor (work_start) dan aturan Jumat hybrid.

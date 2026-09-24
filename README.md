@@ -78,6 +78,15 @@ tergantung pihak ketiga.
 - Rekap Reports, grid Timesheets, dan Export Excel kini mengambil seluruh data (sebelumnya
   terpotong di 1000 baris) dan memakai batas hari WITA.
 
+## Pembaruan: Status Kehadiran Dashboard & Export Excel 3 Sheet
+
+- **Dashboard Admin** — rincian *Status Kehadiran Hari Ini* kini: Tepat waktu · Terlambat · Cuti · Izin ·
+  Sakit · Tanpa berita. Cuti/Izin/Sakit dipisah (dari pengajuan yang sudah disetujui dan berlaku hari ini);
+  "Belum absen" diganti **Tanpa berita** (wajib absen, belum absen masuk, dan tidak punya cuti/izin/sakit).
+- **Export Excel** (manual & laporan otomatis BKPSDM) kini berisi tiga sheet: **Jam Masuk**, **Jam Pulang**,
+  dan **Resume** (satu baris per pegawai per hari: jam masuk, jam pulang, durasi kerja, status terlambat).
+  Sheet Resume hanya memakai absensi berstatus Valid.
+
 ## Pembaruan: Import Pegawai via Excel & Wajib Ganti Password (khusus Admin)
 
 - **People → Tambah Pegawai** kini punya dua tab: *Input Manual* dan *Import Excel*

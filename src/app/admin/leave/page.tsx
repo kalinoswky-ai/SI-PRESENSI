@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getLeaveApprover } from "@/lib/admin/auth";
 import { LEAVE_TYPE_LABEL } from "@/types";
-import type { LeaveRequest } from "@/types";
+import type { LeaveRequest, LeaveType } from "@/types";
 import LeaveActions from "./LeaveActions";
 
 // Selalu baca data terbaru dari Supabase (jangan di-cache Next.js).
@@ -17,6 +17,18 @@ const TABS = [
   { key: "all", label: "Semua" },
 ];
 
+// Kategori jenis pengajuan (folder terpisah untuk Cuti, Izin, dan Sakit).
+const TYPE_TABS: { key: "all" | LeaveType; label: string }[] = [
+  { key: "all", label: "Semua Jenis" },
+  { key: "cuti", label: "Cuti" },
+  { key: "izin", label: "Izin" },
+  { key: "sakit", label: "Sakit" },
+];
+
+function buildHref(status: string, type: string) {
+  return `/admin/leave?status=${status}&type=${type}`;
+}
+
 function formatDate(d: string) {
   return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(
     new Date(`${d}T00:00:00+08:00`)
@@ -26,10 +38,11 @@ function formatDate(d: string) {
 export default async function AdminLeavePage({
   searchParams,
 }: {
-  searchParams: { status?: string };
+  searchParams: { status?: string; type?: string };
 }) {
   const supabase = createClient();
   const status = TABS.some((t) => t.key === searchParams.status) ? searchParams.status! : "pending";
+  const type = TYPE_TABS.some((t) => t.key === searchParams.type) ? searchParams.type! : "all";
   // Hanya Inspektur yang dapat menyetujui/menolak; Admin & Sekretaris mode lihat saja.
   const canApprove = (await getLeaveApprover()) !== null;
 
@@ -58,13 +71,23 @@ export default async function AdminLeavePage({
     (emps ?? []).forEach((e) => employeeMap.set(e.id, e as EmployeeInfo));
   }
 
+  // Hitungan tab jenis mengikuti status terpilih; hitungan tab status mengikuti jenis terpilih.
+  const byType = (r: LeaveRequest) => type === "all" || r.type === type;
+  const byStatus = (r: LeaveRequest) => status === "all" || r.status === status;
+
   const counts: Record<string, number> = {
-    pending: rows.filter((r) => r.status === "pending").length,
-    approved: rows.filter((r) => r.status === "approved").length,
-    rejected: rows.filter((r) => r.status === "rejected").length,
-    all: rows.length,
+    pending: rows.filter((r) => byType(r) && r.status === "pending").length,
+    approved: rows.filter((r) => byType(r) && r.status === "approved").length,
+    rejected: rows.filter((r) => byType(r) && r.status === "rejected").length,
+    all: rows.filter(byType).length,
   };
-  const records = status === "all" ? rows : rows.filter((r) => r.status === status);
+  const typeCounts: Record<string, number> = {
+    all: rows.filter(byStatus).length,
+    cuti: rows.filter((r) => byStatus(r) && r.type === "cuti").length,
+    izin: rows.filter((r) => byStatus(r) && r.type === "izin").length,
+    sakit: rows.filter((r) => byStatus(r) && r.type === "sakit").length,
+  };
+  const records = rows.filter((r) => byType(r) && byStatus(r));
 
   return (
     <div className="space-y-4">
@@ -75,11 +98,30 @@ export default async function AdminLeavePage({
         )}
       </div>
 
+      <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
+        {TYPE_TABS.map((t) => (
+          <a
+            key={t.key}
+            href={buildHref(status, t.key)}
+            className={`-mb-px flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-semibold transition ${
+              type === t.key
+                ? "border-brand-600 text-brand-700"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            {t.label}
+            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] leading-none text-slate-500">
+              {typeCounts[t.key]}
+            </span>
+          </a>
+        ))}
+      </div>
+
       <div className="flex gap-1 overflow-x-auto">
         {TABS.map((t) => (
           <a
             key={t.key}
-            href={`/admin/leave?status=${t.key}`}
+            href={buildHref(t.key, type)}
             className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${
               status === t.key ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-50"
             }`}
@@ -110,7 +152,9 @@ export default async function AdminLeavePage({
       )}
 
       {!leaveError && records.length === 0 && (
-        <p className="text-sm text-slate-500">Tidak ada pengajuan pada kategori ini.</p>
+        <p className="text-sm text-slate-500">{type === "all"
+            ? "Tidak ada pengajuan pada kategori ini."
+            : `Tidak ada pengajuan ${LEAVE_TYPE_LABEL[type as LeaveType].toLowerCase()} pada status ini.`}</p>
       )}
 
       <div className="space-y-2">

@@ -28,19 +28,36 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isAuthRoute = path.startsWith("/login");
   const isProtected = path.startsWith("/dashboard") || path.startsWith("/admin");
+  const isForcePasswordRoute = path.startsWith("/ganti-password");
 
-  if (!user && isProtected) {
+  if (!user && (isProtected || isForcePasswordRoute)) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
   let role: string | undefined;
-  if (user && (isAuthRoute || isProtected)) {
-    const { data: employee } = await supabase
+  let mustChangePassword = false;
+  if (user && (isAuthRoute || isProtected || isForcePasswordRoute)) {
+    let { data: employee, error } = await supabase
       .from("employees")
-      .select("role")
+      .select("role, must_change_password")
       .eq("id", user.id)
       .single();
+    if (error) {
+      // Kolom must_change_password belum ada (migrasi SQL belum dijalankan) — jangan sampai
+      // semua pengguna terkunci; ambil role saja dan lewati kewajiban ganti password.
+      const fallback = await supabase.from("employees").select("role").eq("id", user.id).single();
+      employee = fallback.data as typeof employee;
+    }
     role = employee?.role;
+    mustChangePassword = employee?.must_change_password === true;
+  }
+
+  // Login pertama akun hasil import Excel: wajib ganti password dulu sebelum masuk ke aplikasi.
+  if (user && mustChangePassword && (isProtected || isAuthRoute)) {
+    return NextResponse.redirect(new URL("/ganti-password", request.url));
+  }
+  if (user && isForcePasswordRoute && !mustChangePassword) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   const isLeadership = role === "admin" || role === "pimpinan";
@@ -77,5 +94,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*", "/login"],
+  matcher: ["/dashboard/:path*", "/admin/:path*", "/login", "/ganti-password"],
 };

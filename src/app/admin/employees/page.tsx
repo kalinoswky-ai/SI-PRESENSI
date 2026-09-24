@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getViewerProfile } from "@/lib/admin/auth";
 import { ROLE_LABEL } from "@/types";
 import Link from "next/link";
-import { UserPlus, ScanFace, Pencil } from "lucide-react";
+import { UserPlus, ScanFace, Pencil, FileSpreadsheet } from "lucide-react";
 import DeleteEmployeeButton from "./DeleteEmployeeButton";
 
 // Selalu render ulang & ambil data terbaru dari Supabase — jangan di-cache Next.js.
@@ -25,10 +25,16 @@ export default async function EmployeesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-slate-900">Data Pegawai ({employees?.length ?? 0})</h1>
         {isAdmin && (
-          <Link href="/admin/employees/new" className="btn-primary">
-            <UserPlus size={18} />
-            Tambah Pegawai
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/admin/employees/import" className="btn-secondary">
+              <FileSpreadsheet size={18} />
+              Import Excel
+            </Link>
+            <Link href="/admin/employees/new" className="btn-primary">
+              <UserPlus size={18} />
+              Tambah Pegawai
+            </Link>
+          </div>
         )}
       </div>
       {!isAdmin && (

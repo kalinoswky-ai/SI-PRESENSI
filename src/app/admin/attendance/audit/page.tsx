@@ -9,6 +9,7 @@ const ACTION_LABEL: Record<string, { text: string; cls: string }> = {
   "attendance.update": { text: "Edit absensi", cls: "bg-violet-50 text-violet-700" },
   "attendance.delete": { text: "Hapus absensi", cls: "bg-red-50 text-red-600" },
   "attendance.bulk_delete": { text: "Hapus massal absensi", cls: "bg-red-50 text-red-600" },
+  "employee.import": { text: "Import pegawai (Excel)", cls: "bg-emerald-50 text-emerald-700" },
   "employee.update": { text: "Edit pegawai", cls: "bg-violet-50 text-violet-700" },
   "employee.delete": { text: "Hapus pegawai", cls: "bg-red-50 text-red-600" },
   "employee.delete_failed": { text: "Hapus pegawai gagal", cls: "bg-amber-50 text-amber-700" },

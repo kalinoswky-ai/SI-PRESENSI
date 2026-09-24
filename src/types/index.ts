@@ -26,6 +26,7 @@ export interface Employee {
   face_rejection_reason: string | null;
   apel_group: string | null; // kelompok perangkat daerah/OPD utk menentukan lokasi apel Rabu
   is_active: boolean;
+  must_change_password?: boolean; // true = wajib ganti password saat login pertama (akun hasil import Excel)
   created_at: string;
   updated_at: string;
 }

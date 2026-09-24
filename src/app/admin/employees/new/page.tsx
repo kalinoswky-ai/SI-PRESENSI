@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ScanFace } from "lucide-react";
+import EmployeeAddTabs from "@/components/EmployeeAddTabs";
 
 export default function NewEmployeePage() {
   const router = useRouter();
@@ -49,7 +50,8 @@ export default function NewEmployeePage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-lg font-bold text-slate-900">Tambah Pegawai Baru</h1>
+      <h1 className="text-lg font-bold text-slate-900">Tambah Pegawai</h1>
+      <EmployeeAddTabs active="manual" />
 
       <form onSubmit={handleSubmit} className="card space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">

@@ -61,7 +61,8 @@ export default function AdminSidebar({
     router.refresh();
   }
 
-  const isActive = (href: string) => pathname === href;
+  const isActive = (href: string) =>
+    pathname === href || (href === "/admin/leave" && pathname.startsWith("/admin/leave/"));
   const isSettingsActive = pathname === "/admin/settings";
 
   return (

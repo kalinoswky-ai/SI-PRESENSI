@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import type { EmployeeRole } from "@/types";
 import {
   LayoutDashboard,
   Clock,
@@ -16,6 +17,7 @@ import {
   CalendarClock,
   Bell,
   FileSpreadsheet,
+  Eye,
 } from "lucide-react";
 
 const mainLinks = [
@@ -33,10 +35,23 @@ const settingsLinks = [
   { href: "/admin/settings#integrasi", label: "Integrations", sublabel: "Laporan BKPSDM", icon: FileSpreadsheet },
 ];
 
-export default function AdminSidebar({ orgName, pendingLeave = 0 }: { orgName: string; pendingLeave?: number }) {
+export default function AdminSidebar({
+  orgName,
+  pendingLeave = 0,
+  role = "admin",
+  viewerLabel,
+}: {
+  orgName: string;
+  pendingLeave?: number;
+  /** Role akun yang sedang login. 'pimpinan' = mode lihat statistik saja (read-only). */
+  role?: EmployeeRole;
+  /** Nama/jabatan pimpinan untuk ditampilkan, mis. "Inspektur Kab. Sumba Barat". */
+  viewerLabel?: string | null;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const isPimpinan = role === "pimpinan";
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -67,6 +82,16 @@ export default function AdminSidebar({ orgName, pendingLeave = 0 }: { orgName: s
             <p className="text-xs leading-tight text-slate-500">{orgName}</p>
           </div>
         </div>
+
+        {isPimpinan && (
+          <div className="mx-3 mt-3 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2">
+            <Eye size={16} className="shrink-0 text-brand-600" />
+            <div className="leading-tight">
+              <p className="text-xs font-semibold text-brand-800">{viewerLabel || "Pimpinan"}</p>
+              <p className="text-[11px] text-brand-600">Mode lihat statistik (read-only)</p>
+            </div>
+          </div>
+        )}
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="space-y-0.5">
@@ -101,30 +126,43 @@ export default function AdminSidebar({ orgName, pendingLeave = 0 }: { orgName: s
             ))}
           </ul>
 
-          <p className="mb-1 mt-6 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Settings <span className="normal-case text-slate-400/70">· Pengaturan</span>
-          </p>
-          <ul className="space-y-0.5">
-            {settingsLinks.map((link) => (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                    isSettingsActive ? "text-brand-700 hover:bg-white/60" : "text-slate-600 hover:bg-white/60"
-                  }`}
-                >
-                  <link.icon size={17} />
-                  <span className="flex flex-col leading-tight">
-                    <span>{link.label}</span>
-                    <span className="text-[11px] font-normal text-slate-400">{link.sublabel}</span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {!isPimpinan && (
+            <>
+              <p className="mb-1 mt-6 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Settings <span className="normal-case text-slate-400/70">· Pengaturan</span>
+              </p>
+              <ul className="space-y-0.5">
+                {settingsLinks.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                        isSettingsActive ? "text-brand-700 hover:bg-white/60" : "text-slate-600 hover:bg-white/60"
+                      }`}
+                    >
+                      <link.icon size={17} />
+                      <span className="flex flex-col leading-tight">
+                        <span>{link.label}</span>
+                        <span className="text-[11px] font-normal text-slate-400">{link.sublabel}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </nav>
 
-        <div className="border-t border-white/40 p-3">
+        <div className="space-y-1 border-t border-white/40 p-3">
+          {isPimpinan && (
+            <Link
+              href="/dashboard"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-white/60"
+            >
+              <Clock size={18} />
+              Absensi Saya
+            </Link>
+          )}
           <button
             onClick={handleLogout}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-white/60"
@@ -149,14 +187,24 @@ export default function AdminSidebar({ orgName, pendingLeave = 0 }: { orgName: s
                 unoptimized
               />
             </span>
-            <span className="text-sm">Absensi Digital — Admin</span>
+            <span className="text-sm">{isPimpinan ? "Absensi Digital — Pimpinan" : "Absensi Digital — Admin"}</span>
           </div>
-          <button onClick={handleLogout} className="text-slate-500">
-            <LogOut size={18} />
-          </button>
+          <div className="flex items-center gap-3">
+            {isPimpinan && (
+              <Link href="/dashboard" className="text-slate-500" title="Absensi Saya">
+                <Clock size={18} />
+              </Link>
+            )}
+            <button onClick={handleLogout} className="text-slate-500">
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
         <nav className="flex gap-1 overflow-x-auto border-t border-white/30 px-3 py-2">
-          {[...mainLinks, { href: "/admin/settings", label: "Settings", sublabel: "", icon: Settings }].map(
+          {[
+            ...mainLinks,
+            ...(isPimpinan ? [] : [{ href: "/admin/settings", label: "Settings", sublabel: "", icon: Settings }]),
+          ].map(
             (link) => (
               <Link
                 key={link.href}

@@ -1,5 +1,14 @@
-export type EmployeeRole = "employee" | "admin";
+export type EmployeeRole = "employee" | "admin" | "pimpinan";
 export type FaceEnrollmentStatus = "none" | "pending" | "approved" | "rejected";
+
+// Label tampilan untuk tiap role. "pimpinan" = akses lihat statistik/rekap
+// kehadiran seluruh pegawai (mis. Inspektur, Sekretaris Inspektorat) — tanpa
+// bisa menambah/mengedit/menghapus data apa pun.
+export const ROLE_LABEL: Record<EmployeeRole, string> = {
+  employee: "Pegawai",
+  pimpinan: "Pimpinan",
+  admin: "Admin",
+};
 
 export interface Employee {
   id: string;

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/lib/admin/auth";
 import { LEAVE_TYPE_LABEL } from "@/types";
 import type { LeaveRequest } from "@/types";
 import LeaveActions from "./LeaveActions";
@@ -29,6 +30,8 @@ export default async function AdminLeavePage({
 }) {
   const supabase = createClient();
   const status = TABS.some((t) => t.key === searchParams.status) ? searchParams.status! : "pending";
+  const viewer = await getViewerProfile();
+  const isAdmin = viewer?.role === "admin";
 
   // ROOT CAUSE bug "Time Off kosong": tabel leave_requests punya DUA foreign key ke employees
   // (employee_id = pemohon, reviewed_by = admin yang memproses). Query lama memakai embed
@@ -65,7 +68,12 @@ export default async function AdminLeavePage({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-bold text-slate-900">Pengajuan Cuti / Izin / Sakit</h1>
+      <div>
+        <h1 className="text-lg font-bold text-slate-900">Pengajuan Cuti / Izin / Sakit</h1>
+        {!isAdmin && (
+          <p className="text-sm text-slate-500">Mode lihat saja — persetujuan/penolakan dilakukan oleh Admin.</p>
+        )}
+      </div>
 
       <div className="flex gap-1 overflow-x-auto">
         {TABS.map((t) => (
@@ -143,7 +151,10 @@ export default async function AdminLeavePage({
                 </span>
               </div>
 
-              {r.status === "pending" && <LeaveActions id={r.id} />}
+              {r.status === "pending" && isAdmin && <LeaveActions id={r.id} />}
+              {r.status === "pending" && !isAdmin && (
+                <p className="text-xs font-medium text-amber-600">Menunggu diproses Admin.</p>
+              )}
               {r.status !== "pending" && r.review_note && (
                 <p className="text-xs text-slate-400">Catatan: {r.review_note}</p>
               )}

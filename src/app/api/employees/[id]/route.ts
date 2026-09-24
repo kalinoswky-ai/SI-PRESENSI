@@ -20,7 +20,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if ("full_name" in updates && !String(updates.full_name ?? "").trim()) {
     return NextResponse.json({ error: "Nama lengkap tidak boleh kosong." }, { status: 400 });
   }
-  if ("role" in updates && !["admin", "employee"].includes(updates.role as string)) {
+  if ("role" in updates && !["admin", "employee", "pimpinan"].includes(updates.role as string)) {
     return NextResponse.json({ error: "Role tidak valid." }, { status: 400 });
   }
 

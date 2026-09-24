@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/fetchAll";
+import { getViewerProfile } from "@/lib/admin/auth";
 import { witaDateKey } from "@/lib/geo";
 import { Download } from "lucide-react";
 import AttendanceTabs from "../AttendanceTabs";
@@ -22,6 +23,8 @@ export default async function AttendanceLogPage({
   const supabase = createClient();
   const from = searchParams.from || firstOfMonthStr();
   const to = searchParams.to || witaDateKey(new Date());
+  const viewer = await getViewerProfile();
+  const isAdmin = viewer?.role === "admin";
 
   const [{ data: employees }, { data: office }, { data: records, error }] = await Promise.all([
     supabase.from("employees").select("id, full_name, nip").order("full_name"),
@@ -50,12 +53,13 @@ export default async function AttendanceLogPage({
       <div>
         <h1 className="text-lg font-bold text-slate-900">Timesheets</h1>
         <p className="text-sm text-slate-500">
-          Absensi — log mentah tiap kejadian absen. Admin dapat mengoreksi (Edit) atau menghapus data yang
-          salah; setiap perubahan tercatat di tab Riwayat Perubahan.
+          {isAdmin
+            ? "Absensi — log mentah tiap kejadian absen. Admin dapat mengoreksi (Edit) atau menghapus data yang salah; setiap perubahan tercatat di tab Riwayat Perubahan."
+            : "Absensi — log mentah tiap kejadian absen pegawai (mode lihat saja)."}
         </p>
       </div>
 
-      <AttendanceTabs active="log" />
+      <AttendanceTabs active="log" readOnly={!isAdmin} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-slate-700">Log Absensi ({records.length})</h2>
@@ -95,6 +99,7 @@ export default async function AttendanceLogPage({
       <AttendanceLogTable
         records={records}
         office={office ? { work_start: office.work_start as string, friday_hybrid: Boolean(office.friday_hybrid) } : null}
+        readOnly={!isAdmin}
       />
     </div>
   );

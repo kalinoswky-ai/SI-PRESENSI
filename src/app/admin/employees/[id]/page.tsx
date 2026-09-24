@@ -152,6 +152,7 @@ export default function EmployeeDetailPage() {
               onChange={(e) => patch({ role: e.target.value as Employee["role"] })}
             >
               <option value="employee">Pegawai</option>
+              <option value="pimpinan">Pimpinan (lihat statistik semua pegawai)</option>
               <option value="admin">Admin</option>
             </select>
           </div>

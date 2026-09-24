@@ -283,3 +283,48 @@ where face_descriptor is not null and face_enrollment_status = 'none';
 --  Postgres mengizinkan banyak baris dengan nip NULL secara bersamaan)
 -- ============================================================================
 alter table public.employees alter column nip drop not null;
+
+-- ============================================================================
+-- MIGRASI: Role "Pimpinan" (Inspektur & Sekretaris Inspektorat) — akses lihat
+-- statistik/rekap kehadiran seluruh pegawai lewat /admin, tanpa bisa
+-- menambah/mengedit/menghapus data (lihat juga supabase/update-role-pimpinan.sql)
+-- ============================================================================
+alter table public.employees drop constraint if exists employees_role_check;
+alter table public.employees
+  add constraint employees_role_check check (role in ('employee', 'admin', 'pimpinan'));
+
+create or replace function public.is_pimpinan()
+returns boolean
+language sql
+security definer
+stable
+as $$
+  select exists (
+    select 1 from public.employees
+    where id = auth.uid() and role = 'pimpinan' and is_active = true
+  );
+$$;
+
+create or replace function public.is_admin_or_pimpinan()
+returns boolean
+language sql
+security definer
+stable
+as $$
+  select exists (
+    select 1 from public.employees
+    where id = auth.uid() and role in ('admin', 'pimpinan') and is_active = true
+  );
+$$;
+
+drop policy if exists "employees_select_self" on public.employees;
+create policy "employees_select_self" on public.employees
+  for select using (id = auth.uid() or public.is_admin_or_pimpinan());
+
+drop policy if exists "attendance_select_own_or_admin" on public.attendance;
+create policy "attendance_select_own_or_admin" on public.attendance
+  for select using (employee_id = auth.uid() or public.is_admin_or_pimpinan());
+
+drop policy if exists "leave_select_own_or_admin" on public.leave_requests;
+create policy "leave_select_own_or_admin" on public.leave_requests
+  for select using (employee_id = auth.uid() or public.is_admin_or_pimpinan());

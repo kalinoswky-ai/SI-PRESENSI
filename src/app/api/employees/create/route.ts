@@ -27,14 +27,18 @@ export async function POST(request: NextRequest) {
   const email = formData.get("email") as string;
   const phone = (formData.get("phone") as string) || null;
   const password = formData.get("password") as string;
-  const role = ((formData.get("role") as string) || "employee") as "employee" | "admin";
+  const roleRaw = (formData.get("role") as string) || "employee";
+  if (!["employee", "admin", "pimpinan"].includes(roleRaw)) {
+    return NextResponse.json({ error: "Role tidak valid." }, { status: 400 });
+  }
+  const role = roleRaw as "employee" | "admin" | "pimpinan";
   const descriptorRaw = formData.get("descriptor") as string | null;
   const photo = formData.get("photo") as File | null;
 
-  // NIP wajib untuk pegawai biasa, opsional untuk admin (admin hanya mengontrol sistem)
+  // NIP wajib untuk pegawai biasa & pimpinan, opsional untuk admin (admin hanya mengontrol sistem)
   const nip = nipRaw.trim() || null;
   if (role !== "admin" && !nip) {
-    return NextResponse.json({ error: "NIP wajib diisi untuk akun Pegawai." }, { status: 400 });
+    return NextResponse.json({ error: "NIP wajib diisi untuk akun Pegawai/Pimpinan." }, { status: 400 });
   }
   if (!fullName || !email || !password) {
     return NextResponse.json({ error: "Data pegawai tidak lengkap." }, { status: 400 });

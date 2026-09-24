@@ -1,10 +1,17 @@
 import Link from "next/link";
 
-export default function AttendanceTabs({ active }: { active: "grid" | "log" | "audit" }) {
+export default function AttendanceTabs({
+  active,
+  readOnly = false,
+}: {
+  active: "grid" | "log" | "audit";
+  /** true untuk Pimpinan: sembunyikan tab "Riwayat Perubahan" & ubah label log jadi lihat saja. */
+  readOnly?: boolean;
+}) {
   const tabs = [
     { key: "grid", label: "Timesheets (Mingguan)", href: "/admin/attendance" },
-    { key: "log", label: "Log Absensi (Edit/Hapus)", href: "/admin/attendance/log" },
-    { key: "audit", label: "Riwayat Perubahan", href: "/admin/attendance/audit" },
+    { key: "log", label: readOnly ? "Log Absensi" : "Log Absensi (Edit/Hapus)", href: "/admin/attendance/log" },
+    ...(readOnly ? [] : [{ key: "audit" as const, label: "Riwayat Perubahan", href: "/admin/attendance/audit" }]),
   ] as const;
 
   return (

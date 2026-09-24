@@ -15,12 +15,14 @@ export async function GET(request: NextRequest) {
 
   const { data: requester } = await supabase
     .from("employees")
-    .select("role")
+    .select("role, is_active")
     .eq("id", userData.user.id)
     .single();
 
-  if (requester?.role !== "admin") {
-    return NextResponse.json({ error: "Hanya Admin yang dapat mengekspor laporan." }, { status: 403 });
+  // Export laporan (unduh Excel) BUKAN operasi tulis/hapus data, sehingga Admin maupun
+  // Pimpinan (Inspektur/Sekretaris — mode lihat statistik) sama-sama boleh mengunduhnya.
+  if (!requester || !requester.is_active || (requester.role !== "admin" && requester.role !== "pimpinan")) {
+    return NextResponse.json({ error: "Anda tidak memiliki akses untuk mengekspor laporan." }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);

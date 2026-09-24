@@ -23,9 +23,12 @@ function fromWitaInput(v: string): Date {
 export default function AttendanceLogTable({
   records,
   office,
+  readOnly = false,
 }: {
   records: AttendanceRecord[];
   office: OfficeRule | null;
+  /** true untuk Pimpinan: sembunyikan checkbox pilih, tombol Edit/Hapus, dan hapus massal. */
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -52,7 +55,7 @@ export default function AttendanceLogTable({
 
   return (
     <>
-      {selected.size > 0 && (
+      {!readOnly && selected.size > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-red-200 bg-red-50/70 px-4 py-2 text-sm">
           <span className="text-slate-700">
             <strong>{selected.size}</strong> data dipilih
@@ -75,14 +78,16 @@ export default function AttendanceLogTable({
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-slate-500">
             <tr>
-              <th className="w-10 px-4 py-3">
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  onChange={() => setSelected(allSelected ? new Set() : new Set(records.map((r) => r.id)))}
-                  aria-label="Pilih semua"
-                />
-              </th>
+              {!readOnly && (
+                <th className="w-10 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={() => setSelected(allSelected ? new Set() : new Set(records.map((r) => r.id)))}
+                    aria-label="Pilih semua"
+                  />
+                </th>
+              )}
               <th className="px-4 py-3">Pegawai</th>
               <th className="px-4 py-3">Jenis</th>
               <th className="px-4 py-3">Waktu Server</th>
@@ -90,20 +95,22 @@ export default function AttendanceLogTable({
               <th className="px-4 py-3">Lokasi</th>
               <th className="px-4 py-3">Wajah</th>
               <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3 text-right">Aksi</th>
+              {!readOnly && <th className="px-4 py-3 text-right">Aksi</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {records.map((r) => (
               <tr key={r.id} className={selected.has(r.id) ? "bg-red-50/40" : undefined}>
-                <td className="px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(r.id)}
-                    onChange={() => toggle(r.id)}
-                    aria-label="Pilih baris"
-                  />
-                </td>
+                {!readOnly && (
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(r.id)}
+                      onChange={() => toggle(r.id)}
+                      aria-label="Pilih baris"
+                    />
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   <p className="font-medium text-slate-800">{r.employees?.full_name}</p>
                   <p className="text-xs text-slate-500">{r.employees?.nip}</p>
@@ -164,25 +171,27 @@ export default function AttendanceLogTable({
                     </span>
                   )}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right">
-                  <button
-                    onClick={() => setEditing(r)}
-                    className="mr-3 inline-flex items-center gap-1 text-brand-600 hover:underline"
-                  >
-                    <Pencil size={14} /> Edit
-                  </button>
-                  <button
-                    onClick={() => setDeleting(r)}
-                    className="inline-flex items-center gap-1 text-red-600 hover:underline"
-                  >
-                    <Trash2 size={14} /> Hapus
-                  </button>
-                </td>
+                {!readOnly && (
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    <button
+                      onClick={() => setEditing(r)}
+                      className="mr-3 inline-flex items-center gap-1 text-brand-600 hover:underline"
+                    >
+                      <Pencil size={14} /> Edit
+                    </button>
+                    <button
+                      onClick={() => setDeleting(r)}
+                      className="inline-flex items-center gap-1 text-red-600 hover:underline"
+                    >
+                      <Trash2 size={14} /> Hapus
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
             {records.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={readOnly ? 7 : 9} className="px-4 py-8 text-center text-slate-400">
                   Tidak ada data absensi pada rentang ini.
                 </td>
               </tr>
@@ -191,8 +200,10 @@ export default function AttendanceLogTable({
         </table>
       </div>
 
-      {editing && <EditModal record={editing} office={office} onClose={() => setEditing(null)} onDone={done} />}
-      {deleting && (
+      {!readOnly && editing && (
+        <EditModal record={editing} office={office} onClose={() => setEditing(null)} onDone={done} />
+      )}
+      {!readOnly && deleting && (
         <DeleteModal
           target={deleting}
           ids={deleting === "bulk" ? Array.from(selected) : [deleting.id]}

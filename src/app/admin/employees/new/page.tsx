@@ -89,8 +89,16 @@ export default function NewEmployeePage() {
               onChange={(e) => update("role", e.target.value)}
             >
               <option value="employee">Pegawai</option>
+              <option value="pimpinan">Pimpinan (lihat statistik semua pegawai)</option>
               <option value="admin">Admin</option>
             </select>
+            {form.role === "pimpinan" && (
+              <p className="mt-1 text-xs text-slate-400">
+                Contoh Jabatan: <strong>Inspektur</strong> atau <strong>Sekretaris Inspektorat</strong>. Akun ini
+                tetap absen sendiri lewat Dashboard, ditambah akses lihat Timesheets, Reports, dan status Cuti/Izin
+                seluruh pegawai lewat menu Admin (tanpa bisa menambah/mengedit/menghapus data).
+              </p>
+            )}
           </div>
           <div>
             <label className="label">Email</label>

@@ -43,17 +43,34 @@ export async function middleware(request: NextRequest) {
     role = employee?.role;
   }
 
+  const isLeadership = role === "admin" || role === "pimpinan";
+
   if (user && isAuthRoute) {
-    return NextResponse.redirect(new URL(role === "admin" ? "/admin" : "/dashboard", request.url));
+    return NextResponse.redirect(new URL(isLeadership ? "/admin" : "/dashboard", request.url));
   }
 
   // Akun admin hanya mengontrol sistem — tidak melakukan absensi sendiri lewat /dashboard.
+  // Pimpinan (Inspektur/Sekretaris) TETAP boleh membuka /dashboard: mereka tetap absen
+  // sendiri seperti pegawai biasa, hanya ditambah akses lihat statistik di /admin.
   if (user && path.startsWith("/dashboard") && role === "admin") {
     return NextResponse.redirect(new URL("/admin", request.url));
   }
 
-  if (user && path.startsWith("/admin") && role !== "admin") {
+  // Panel /admin: Admin (penuh) dan Pimpinan (lihat statistik saja) boleh masuk.
+  if (user && path.startsWith("/admin") && !isLeadership) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  // Halaman berikut khusus Admin (mengubah data pegawai/pengaturan sistem/melihat
+  // riwayat perubahan) — Pimpinan diarahkan kembali ke Dashboard Admin (ringkasan).
+  const adminOnlySubpaths =
+    path.startsWith("/admin/employees/new") ||
+    /^\/admin\/employees\/[^/]+/.test(path) || // /admin/employees/[id] (form edit pegawai)
+    path.startsWith("/admin/settings") ||
+    path.startsWith("/admin/attendance/audit");
+
+  if (user && role === "pimpinan" && adminOnlySubpaths) {
+    return NextResponse.redirect(new URL("/admin", request.url));
   }
 
   return response;

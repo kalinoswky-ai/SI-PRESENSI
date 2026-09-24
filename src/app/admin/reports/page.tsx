@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/fetchAll";
+import { getViewerProfile } from "@/lib/admin/auth";
 import { formatWita, witaDateKey } from "@/lib/geo";
 import Link from "next/link";
 import { Download, Users, CheckCircle2, AlertTriangle, XCircle, Pencil } from "lucide-react";
@@ -24,6 +25,8 @@ export default async function ReportsPage({
   const supabase = createClient();
   const from = searchParams.from || firstOfMonthStr();
   const to = searchParams.to || todayStr();
+  const viewer = await getViewerProfile();
+  const isAdmin = viewer?.role === "admin";
 
   // fetchAllRows: query biasa dibatasi 1000 baris oleh Supabase sehingga rekap bisa terpotong
   const [{ data: employees }, { data: records }] = await Promise.all([
@@ -126,7 +129,7 @@ export default async function ReportsPage({
               <th className="px-4 py-3">Hadir</th>
               <th className="px-4 py-3">Terlambat</th>
               <th className="px-4 py-3">Ditolak</th>
-              <th className="px-4 py-3 text-right">Kelola Data</th>
+              <th className="px-4 py-3 text-right">{isAdmin ? "Kelola Data" : "Detail"}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -144,9 +147,15 @@ export default async function ReportsPage({
                     href={`/admin/attendance/log?employee_id=${e.id}&from=${from}&to=${to}`}
                     className="mr-3 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline"
                   >
-                    <Pencil size={13} /> Edit
+                    {isAdmin ? (
+                      <>
+                        <Pencil size={13} /> Edit
+                      </>
+                    ) : (
+                      "Lihat Log"
+                    )}
                   </Link>
-                  {e.total > 0 && (
+                  {isAdmin && e.total > 0 && (
                     <DeleteAttendanceRangeButton
                       compact
                       label="Hapus"
@@ -171,7 +180,7 @@ export default async function ReportsPage({
         </table>
       </div>
 
-      {rows.length > 0 && (
+      {isAdmin && rows.length > 0 && (
         <div className="card space-y-3">
           <div>
             <p className="text-sm font-semibold text-slate-800">Kelola Data Periode Ini</p>

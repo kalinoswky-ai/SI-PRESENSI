@@ -78,6 +78,14 @@ tergantung pihak ketiga.
 - Rekap Reports, grid Timesheets, dan Export Excel kini mengambil seluruh data (sebelumnya
   terpotong di 1000 baris) dan memakai batas hari WITA.
 
+## Pembaruan: Bisa Dipasang di Layar Utama HP (PWA)
+
+- Aplikasi kini punya *Web App Manifest* + ikon (`public/icons/`, logo Kab. Sumba Barat), sehingga di
+  Android (Chrome) muncul **Instal aplikasi** dan di iPhone (Safari) **Tambahkan ke Layar Utama**
+  dengan ikon yang benar dan tampilan layar penuh. Tidak perlu Play Store / App Store.
+- Butuh alamat **https** (Vercel sudah https). Tidak ada service worker: aplikasi tetap membutuhkan internet.
+- Panduan untuk pegawai: bagikan halaman panduan pemasangan (Android & iPhone).
+
 ## Pembaruan: Status Kehadiran Dashboard & Export Excel 3 Sheet
 
 - **Dashboard Admin** — rincian *Status Kehadiran Hari Ini* kini: Tepat waktu · Terlambat · Cuti · Izin ·

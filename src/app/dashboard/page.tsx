@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useGeolocation } from "@/lib/useGeolocation";
 import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
 import ServerClock from "@/components/ServerClock";
-import { distanceInMeters, isFridayWita, witaDateKey, witaIsoWeekday } from "@/lib/geo";
+import { distanceInMeters, isBeforeWorkEnd, isFridayWita, witaDateKey, witaDayOfMonth, witaIsoWeekday, witaTimeHHMM } from "@/lib/geo";
 import { formatTime } from "@/lib/employee/history";
 import RecentHistory from "@/components/employee-dashboard/RecentHistory";
 import type { ApelLocation, AttendanceRecord, Employee, LeaveRequest, Office, WorkMode } from "@/types";
@@ -27,6 +27,13 @@ export default function DashboardPage() {
   const [chosenMode, setChosenMode] = useState<WorkMode | null>(null); // pilihan WFO/WFH utk absen masuk
   const [apelCandidates, setApelCandidates] = useState<ApelLocation[]>([]); // lokasi apel Senin/Rabu yang berlaku hari ini
   const [chosenApelId, setChosenApelId] = useState<string | null>(null);
+  const [apelCancelledToday, setApelCancelledToday] = useState(false); // apel dijadwalkan tapi ditiadakan admin hari ini
+
+  // Acuan jam server (bukan jam perangkat) utk mengetahui kapan jam pulang (work_end) tercapai —
+  // diambil sekali saat load, lalu "dijalankan" memakai selisih waktu perangkat agar tetap akurat
+  // tanpa polling terus-menerus. Validasi sesungguhnya tetap di server saat kirim absensi.
+  const [serverNowBase, setServerNowBase] = useState<{ serverMs: number; localMs: number } | null>(null);
+  const [, setTick] = useState(0); // dipakai hanya utk memicu re-render berkala (lihat useEffect di bawah)
 
   const [step, setStep] = useState<Step>("idle");
   const [pendingType, setPendingType] = useState<"in" | "out" | null>(null);
@@ -46,11 +53,14 @@ export default function DashboardPage() {
       try {
         const st = await fetch(`/api/server-time?t=${Date.now()}`, { cache: "no-store" }).then((r) => r.json());
         serverNow = new Date(st.serverTime);
+        setServerNowBase({ serverMs: serverNow.getTime(), localMs: Date.now() });
       } catch {
         // gagal mengambil jam server: pakai jam perangkat hanya untuk tampilan awal
+        setServerNowBase({ serverMs: serverNow.getTime(), localMs: Date.now() });
       }
       setIsFriday(isFridayWita(serverNow));
       const weekday = witaIsoWeekday(serverNow);
+      const dayOfMonth = witaDayOfMonth(serverNow);
       const todayStr = witaDateKey(serverNow);
 
       const [{ data: emp }, { data: off }, { data: att }, { data: leave }, apelRes] = await Promise.all([
@@ -71,9 +81,9 @@ export default function DashboardPage() {
           .gte("end_date", todayStr)
           .limit(1)
           .maybeSingle(),
-        weekday === 1 || weekday === 3
-          ? supabase.from("apel_locations").select("*").eq("weekday", weekday).eq("is_active", true)
-          : Promise.resolve({ data: [] as ApelLocation[] }),
+        // Ambil semua lokasi apel aktif — bisa jadwal mingguan (Senin/Rabu) ATAU bulanan
+        // (tanggal tetap, mis. 17 tiap bulan); yang cocok dgn hari ini disaring di bawah.
+        supabase.from("apel_locations").select("*").eq("is_active", true),
       ]);
 
       const employeeData = emp as Employee;
@@ -82,18 +92,36 @@ export default function DashboardPage() {
       setTodayRecords((att ?? []) as AttendanceRecord[]);
       setTodayLeave((leave as LeaveRequest) ?? null);
 
-      // Hanya lokasi apel yang berlaku utk semua pegawai (group_name null, khusus Senin) atau
-      // yang sesuai kelompok OPD pegawai ybs (khusus Rabu) yang ditampilkan sbg pilihan.
-      const apelRows = ((apelRes?.data ?? []) as ApelLocation[]).filter(
+      // Lokasi apel yang jadwalnya cocok hari ini (mingguan Senin/Rabu ATAU bulanan tanggal
+      // tetap), lalu disaring lagi: hanya yang berlaku utk semua pegawai (group_name null)
+      // atau sesuai kelompok OPD pegawai ybs yang ditampilkan sbg pilihan.
+      const scheduledToday = ((apelRes?.data ?? []) as ApelLocation[]).filter(
+        (loc) => loc.weekday === weekday || loc.day_of_month === dayOfMonth
+      );
+      const relevantApelRows = scheduledToday.filter(
         (loc) => loc.group_name === null || loc.group_name === employeeData?.apel_group
       );
+      // Lokasi yang cancelled_date-nya = hari ini dianggap TIDAK TERSEDIA (apel ditiadakan hari
+      // ini saja) — server melakukan pengecekan ulang yang sama, ini hanya utk tampilan.
+      const apelRows = relevantApelRows.filter((loc) => loc.cancelled_date !== todayStr);
       setApelCandidates(apelRows);
+      setApelCancelledToday(relevantApelRows.length > 0 && apelRows.length === 0);
       if (apelRows.length === 1) setChosenApelId(apelRows[0].id);
 
       setLoading(false);
     }
     load();
   }, [supabase]);
+
+  // Perbarui tampilan tiap 15 detik agar tombol "Absen Pulang" otomatis aktif begitu jam
+  // pulang (work_end) tercapai, tanpa perlu refresh halaman.
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  const serverTimeNow = serverNowBase ? new Date(serverNowBase.serverMs + (Date.now() - serverNowBase.localMs)) : null;
+  const canClockOut = !office || !serverTimeNow ? true : !isBeforeWorkEnd(serverTimeNow, office.work_end);
 
   const validIn = todayRecords.find((r) => r.type === "in" && r.status === "valid");
   const validOut = todayRecords.find((r) => r.type === "out" && r.status === "valid");
@@ -340,10 +368,29 @@ export default function DashboardPage() {
                 Mode hari ini: {isWfh ? "WFH (dari rumah)" : "WFO (di kantor)"}
               </p>
             )}
+            {nextType === "in" && apelCancelledToday && (
+              <p className="mx-auto mb-3 max-w-sm rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Apel pagi hari ini <strong>ditiadakan</strong>. Presensi masuk kembali dilakukan
+                seperti biasa di Kantor Inspektorat.
+              </p>
+            )}
             <p className="mb-4 text-slate-600">
-              {nextType === "in" ? "Silakan lakukan absen masuk." : "Silakan lakukan absen pulang."}
+              {nextType === "in"
+                ? "Silakan lakukan absen masuk."
+                : canClockOut
+                  ? "Silakan lakukan absen pulang."
+                  : `Absen pulang baru dapat dilakukan mulai pukul ${office?.work_end ?? "-"} WITA.`}
             </p>
-            <button onClick={() => startClock(nextType)} className="btn-primary">
+            {nextType === "out" && !canClockOut && serverTimeNow && (
+              <p className="mb-4 -mt-2 text-xs text-slate-400">
+                Sekarang pukul {witaTimeHHMM(serverTimeNow)} WITA.
+              </p>
+            )}
+            <button
+              onClick={() => startClock(nextType)}
+              disabled={nextType === "out" && !canClockOut}
+              className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
               {nextType === "in" ? <LogIn size={18} /> : <LogOut size={18} />}
               {nextType === "in" ? "Absen Masuk" : "Absen Pulang"}
             </button>

@@ -83,6 +83,19 @@ export function witaIsoWeekday(date: Date): number {
   return map[weekday] ?? 0;
 }
 
+/**
+ * Tanggal-dalam-bulan (1-31) menurut WITA (Asia/Makassar). Dipakai utk apel bulanan
+ * yang jatuh pada tanggal tetap tiap bulan (mis. tanggal 17 — Apel Kesadaran Nasional
+ * di Kantor Bupati), terlepas dari hari apa tanggal tsb jatuh.
+ */
+export function witaDayOfMonth(date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Makassar",
+    day: "2-digit",
+  }).formatToParts(date);
+  return Number(parts.find((p) => p.type === "day")?.value ?? "0");
+}
+
 /** Format durasi menit menjadi "Xh Ym" (mis. 8h 5m). Mengembalikan "-" bila 0/negatif. */
 export function formatDurationMinutes(totalMinutes: number): string {
   if (!totalMinutes || totalMinutes <= 0) return "-";
@@ -120,6 +133,42 @@ export function isLateClockIn(
   const minutesStart = wsH * 60 + wsM;
 
   return minutesNow > minutesStart;
+}
+
+/** Format waktu ke "HH:MM" saja (WITA) — dipakai utk pesan penolakan/prompt jam pulang. */
+export function witaTimeHHMM(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Makassar",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const hour = parts.find((p) => p.type === "hour")?.value ?? "00";
+  const minute = parts.find((p) => p.type === "minute")?.value ?? "00";
+  return `${hour}:${minute}`;
+}
+
+/**
+ * Menentukan apakah waktu SEKARANG (WITA) masih SEBELUM jam pulang kantor (work_end).
+ * Dipakai utk menolak absen PULANG yang dilakukan sebelum jam pulang resmi — clock-out
+ * hanya boleh dilakukan tepat pada jam pulang yang ditentukan atau setelahnya.
+ */
+export function isBeforeWorkEnd(serverTime: Date, workEndHHMM: string): boolean {
+  const wita = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Makassar",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(serverTime);
+
+  const hour = Number(wita.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(wita.find((p) => p.type === "minute")?.value ?? "0");
+
+  const [weH, weM] = workEndHHMM.split(":").map(Number);
+  const minutesNow = hour * 60 + minute;
+  const minutesEnd = weH * 60 + weM;
+
+  return minutesNow < minutesEnd;
 }
 
 /** Tautan Google Maps ke titik koordinat (dipakai utk menampilkan lokasi absen di log/riwayat). */

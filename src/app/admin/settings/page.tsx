@@ -6,7 +6,20 @@ import { createClient } from "@/lib/supabase/client";
 import { useGeolocation } from "@/lib/useGeolocation";
 import ChangePasswordForm from "@/components/ChangePasswordForm";
 import type { ApelLocation, Office } from "@/types";
-import { MapPin, Save, CheckCircle2, Send, MessageCircle, FileSpreadsheet, Flag, Plus, Trash2 } from "lucide-react";
+import { witaDateKey } from "@/lib/geo";
+import {
+  MapPin,
+  Save,
+  CheckCircle2,
+  Send,
+  MessageCircle,
+  FileSpreadsheet,
+  Flag,
+  Plus,
+  Trash2,
+  CalendarX,
+  CalendarCheck,
+} from "lucide-react";
 
 // Leaflet (peta Esri) butuh akses `window`, jadi wajib dimuat hanya di browser (ssr: false)
 const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
@@ -30,21 +43,29 @@ export default function SettingsPage() {
   const [testingReport, setTestingReport] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // ---------- Lokasi Apel Senin (Kantor Bupati) & Rabu (per kelompok OPD) ----------
+  // ---------- Lokasi Apel: mingguan Senin/Rabu & bulanan tanggal tetap (mis. tgl 17) ----------
   const [apelLocations, setApelLocations] = useState<ApelLocation[]>([]);
   const [apelError, setApelError] = useState<string | null>(null);
   const [newApel, setNewApel] = useState({
     name: "",
+    scheduleType: "weekday" as "weekday" | "monthly",
     weekday: 1 as 1 | 3,
+    day_of_month: 17,
     group_name: "",
     latitude: "",
     longitude: "",
     radius_meters: 150,
   });
   const apelGeo = useGeolocation();
+  const [todayKey, setTodayKey] = useState<string>(() => witaDateKey(new Date()));
 
   async function loadApelLocations() {
-    const { data } = await supabase.from("apel_locations").select("*").order("weekday").order("name");
+    const { data } = await supabase
+      .from("apel_locations")
+      .select("*")
+      .order("weekday", { ascending: true, nullsFirst: false })
+      .order("day_of_month", { ascending: true, nullsFirst: false })
+      .order("name");
     setApelLocations((data ?? []) as ApelLocation[]);
   }
 
@@ -56,8 +77,19 @@ export default function SettingsPage() {
     }
     load();
     loadApelLocations();
+    // Tanggal "hari ini" (WITA) dipakai utk tombol batalkan-apel-hari-ini — ambil dari jam
+    // server agar konsisten dgn penentuan tanggal di endpoint absensi (bukan jam perangkat admin).
+    fetch(`/api/server-time?t=${Date.now()}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setTodayKey(witaDateKey(new Date(d.serverTime))))
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
+
+  function toggleCancelToday(loc: ApelLocation) {
+    const isCancelledToday = loc.cancelled_date === todayKey;
+    updateApelLocation(loc.id, { cancelled_date: isCancelledToday ? null : todayKey });
+  }
 
   useEffect(() => {
     if (apelGeo.position) {
@@ -74,14 +106,20 @@ export default function SettingsPage() {
     setApelError(null);
     const lat = parseFloat(newApel.latitude);
     const lng = parseFloat(newApel.longitude);
+    const isMonthly = newApel.scheduleType === "monthly";
     if (!newApel.name.trim() || Number.isNaN(lat) || Number.isNaN(lng)) {
       setApelError("Nama lokasi dan koordinat (latitude/longitude) wajib diisi.");
       return;
     }
+    if (isMonthly && (!Number.isInteger(newApel.day_of_month) || newApel.day_of_month < 1 || newApel.day_of_month > 31)) {
+      setApelError("Tanggal apel bulanan harus berupa angka 1-31.");
+      return;
+    }
     const { error } = await supabase.from("apel_locations").insert({
       name: newApel.name.trim(),
-      weekday: newApel.weekday,
-      group_name: newApel.weekday === 3 ? newApel.group_name.trim() || null : null,
+      weekday: isMonthly ? null : newApel.weekday,
+      day_of_month: isMonthly ? newApel.day_of_month : null,
+      group_name: isMonthly || newApel.weekday === 3 ? newApel.group_name.trim() || null : null,
       latitude: lat,
       longitude: lng,
       radius_meters: newApel.radius_meters,
@@ -91,7 +129,16 @@ export default function SettingsPage() {
       setApelError("Gagal menambah lokasi: " + error.message);
       return;
     }
-    setNewApel({ name: "", weekday: 1, group_name: "", latitude: "", longitude: "", radius_meters: 150 });
+    setNewApel({
+      name: "",
+      scheduleType: "weekday",
+      weekday: 1,
+      day_of_month: 17,
+      group_name: "",
+      latitude: "",
+      longitude: "",
+      radius_meters: 150,
+    });
     loadApelLocations();
   }
 
@@ -312,72 +359,140 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {/* ---------- Lokasi Apel Senin (Kantor Bupati) & Rabu (per kelompok OPD) ---------- */}
+      {/* ---------- Lokasi Apel Mingguan (Senin/Rabu) & Bulanan (tanggal tetap) ---------- */}
       <div id="lokasi-apel" className="card scroll-mt-24 space-y-4">
         <div className="flex items-center gap-2">
           <Flag className="text-brand-600" size={20} />
-          <h2 className="font-semibold text-slate-800">Lokasi Apel Pagi (Senin &amp; Rabu)</h2>
+          <h2 className="font-semibold text-slate-800">Lokasi Apel Pagi</h2>
         </div>
         <p className="text-sm text-slate-500">
           Setiap Senin, apel pagi dilaksanakan di Kantor Bupati — berlaku untuk semua pegawai.
           Setiap Rabu, apel dilaksanakan per kelompok perangkat daerah (OPD) — isi &quot;Kelompok
           OPD&quot; agar hanya berlaku untuk pegawai dengan kelompok apel yang sama (diatur di menu
-          Kelola Pegawai). Pegawai boleh absen masuk dari lokasi ini pada hari yang sesuai, selain
-          di kantor.
+          Kelola Pegawai). Selain jadwal mingguan tsb, tersedia juga jadwal <strong>bulanan</strong>{" "}
+          pada tanggal tetap tiap bulan (mis. tanggal 17 — Apel Peringatan Hari Kesadaran
+          Nasional) — berlaku pada tanggal tsb terlepas dari jatuh di hari apa. Pegawai boleh
+          absen masuk dari lokasi ini pada hari/tanggal yang sesuai, selain di kantor.
+        </p>
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Jika sewaktu-waktu apel <strong>tidak dilaksanakan</strong> (dibatalkan) pada hari
+          berjalan, klik &quot;Batalkan hari ini&quot; pada lokasi tsb. Pegawai otomatis tidak
+          bisa lagi absen masuk di lokasi apel itu untuk tanggal hari ini saja — presensi masuk
+          kembali wajib dilakukan di radius Kantor Inspektorat, seperti hari biasa. Pengaturan ini
+          otomatis tidak berlaku lagi di jadwal berikutnya (harus dibatalkan ulang bila apel
+          kembali ditiadakan).
         </p>
 
         {apelLocations.length > 0 && (
           <div className="space-y-3 border-t border-slate-100 pt-4">
-            {apelLocations.map((loc) => (
-              <div key={loc.id} className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-6 sm:items-center">
-                <span className="text-xs font-semibold uppercase text-slate-400">
-                  {loc.weekday === 1 ? "Senin" : "Rabu"}
-                </span>
-                <input
-                  className="input sm:col-span-2"
-                  defaultValue={loc.name}
-                  onBlur={(e) => e.target.value !== loc.name && updateApelLocation(loc.id, { name: e.target.value })}
-                />
-                <input
-                  className="input"
-                  placeholder={loc.weekday === 3 ? "Kelompok OPD" : "(semua pegawai)"}
-                  disabled={loc.weekday === 1}
-                  defaultValue={loc.group_name ?? ""}
-                  onBlur={(e) =>
-                    e.target.value !== (loc.group_name ?? "") &&
-                    updateApelLocation(loc.id, { group_name: e.target.value.trim() || null })
-                  }
-                />
-                <input
-                  type="number"
-                  className="input"
-                  title="Radius (meter)"
-                  defaultValue={loc.radius_meters}
-                  onBlur={(e) =>
-                    Number(e.target.value) !== loc.radius_meters &&
-                    updateApelLocation(loc.id, { radius_meters: parseInt(e.target.value, 10) })
-                  }
-                />
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-1.5 text-xs text-slate-600">
+            {apelLocations.map((loc) => {
+              const isCancelledToday = loc.cancelled_date === todayKey;
+              const isMonthly = loc.day_of_month !== null;
+              return (
+                <div
+                  key={loc.id}
+                  className={`space-y-2 rounded-lg border p-3 ${
+                    isCancelledToday ? "border-amber-300 bg-amber-50/60" : "border-slate-200"
+                  }`}
+                >
+                  <div className="grid gap-2 sm:grid-cols-6 sm:items-center">
+                    {isMonthly ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs font-semibold uppercase text-emerald-600">Tgl</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={31}
+                          className="input w-16 px-2"
+                          title="Tanggal tiap bulan (1-31)"
+                          defaultValue={loc.day_of_month ?? 17}
+                          onBlur={(e) => {
+                            const v = parseInt(e.target.value, 10);
+                            if (v && v !== loc.day_of_month && v >= 1 && v <= 31) {
+                              updateApelLocation(loc.id, { day_of_month: v });
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-xs font-semibold uppercase text-slate-400">
+                        {loc.weekday === 1 ? "Senin" : "Rabu"}
+                      </span>
+                    )}
                     <input
-                      type="checkbox"
-                      checked={loc.is_active}
-                      onChange={(e) => updateApelLocation(loc.id, { is_active: e.target.checked })}
+                      className="input sm:col-span-2"
+                      defaultValue={loc.name}
+                      onBlur={(e) => e.target.value !== loc.name && updateApelLocation(loc.id, { name: e.target.value })}
                     />
-                    Aktif
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => deleteApelLocation(loc.id)}
-                    className="ml-auto text-red-500 hover:text-red-700"
-                    title="Hapus lokasi"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                    <input
+                      className="input"
+                      placeholder={loc.weekday === 3 || isMonthly ? "Kelompok OPD" : "(semua pegawai)"}
+                      disabled={loc.weekday === 1}
+                      defaultValue={loc.group_name ?? ""}
+                      onBlur={(e) =>
+                        e.target.value !== (loc.group_name ?? "") &&
+                        updateApelLocation(loc.id, { group_name: e.target.value.trim() || null })
+                      }
+                    />
+                    <input
+                      type="number"
+                      className="input"
+                      title="Radius (meter)"
+                      defaultValue={loc.radius_meters}
+                      onBlur={(e) =>
+                        Number(e.target.value) !== loc.radius_meters &&
+                        updateApelLocation(loc.id, { radius_meters: parseInt(e.target.value, 10) })
+                      }
+                    />
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={loc.is_active}
+                          onChange={(e) => updateApelLocation(loc.id, { is_active: e.target.checked })}
+                        />
+                        Aktif
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => deleteApelLocation(loc.id)}
+                        className="ml-auto text-red-500 hover:text-red-700"
+                        title="Hapus lokasi"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-slate-200 pt-2">
+                    {isCancelledToday ? (
+                      <>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                          <CalendarX size={13} />
+                          Apel ditiadakan hari ini — pegawai absen di kantor
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleCancelToday(loc)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+                        >
+                          <CalendarCheck size={13} />
+                          Aktifkan kembali apel hari ini
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => toggleCancelToday(loc)}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline"
+                      >
+                        <CalendarX size={13} />
+                        Batalkan hari ini (apel tidak dilaksanakan)
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -392,24 +507,54 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className="label">Hari</label>
+            <label className="label">Jenis Jadwal</label>
             <select
               className="input"
-              value={newApel.weekday}
-              onChange={(e) => setNewApel((n) => ({ ...n, weekday: Number(e.target.value) as 1 | 3 }))}
+              value={newApel.scheduleType}
+              onChange={(e) =>
+                setNewApel((n) => ({ ...n, scheduleType: e.target.value as "weekday" | "monthly" }))
+              }
             >
-              <option value={1}>Senin</option>
-              <option value={3}>Rabu</option>
+              <option value="weekday">Mingguan (Senin/Rabu)</option>
+              <option value="monthly">Bulanan (tanggal tetap)</option>
             </select>
           </div>
+          {newApel.scheduleType === "weekday" ? (
+            <div>
+              <label className="label">Hari</label>
+              <select
+                className="input"
+                value={newApel.weekday}
+                onChange={(e) => setNewApel((n) => ({ ...n, weekday: Number(e.target.value) as 1 | 3 }))}
+              >
+                <option value={1}>Senin</option>
+                <option value={3}>Rabu</option>
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label className="label">Tanggal (1-31)</label>
+              <input
+                type="number"
+                min={1}
+                max={31}
+                className="input"
+                value={newApel.day_of_month}
+                onChange={(e) => setNewApel((n) => ({ ...n, day_of_month: parseInt(e.target.value, 10) || 0 }))}
+                placeholder="mis. 17"
+              />
+            </div>
+          )}
           <div>
             <label className="label">Kelompok OPD</label>
             <input
               className="input"
-              disabled={newApel.weekday === 1}
+              disabled={newApel.scheduleType === "weekday" && newApel.weekday === 1}
               value={newApel.group_name}
               onChange={(e) => setNewApel((n) => ({ ...n, group_name: e.target.value }))}
-              placeholder={newApel.weekday === 1 ? "semua pegawai" : "mis. Inspektorat"}
+              placeholder={
+                newApel.scheduleType === "weekday" && newApel.weekday === 1 ? "semua pegawai" : "kosongkan = semua pegawai"
+              }
             />
           </div>
           <div>

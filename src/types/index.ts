@@ -84,7 +84,7 @@ export interface AttendanceRecord {
   reject_reason: string | null;
   is_late: boolean;
   work_mode: WorkMode; // 'wfh' hanya mungkin pada hari Jumat (kebijakan hybrid)
-  apel_location_id: string | null; // lokasi apel Senin/Rabu yang dipakai (jika ada)
+  apel_location_id: string | null; // lokasi apel (mingguan Senin/Rabu atau bulanan) yang dipakai (jika ada)
   location_label: string | null; // nama lokasi apel, utk jejak audit di riwayat/laporan
   created_at: string;
   edited_at?: string | null; // terisi bila data dikoreksi Admin
@@ -92,16 +92,21 @@ export interface AttendanceRecord {
   employees?: Pick<Employee, "full_name" | "nip" | "position">;
 }
 
-// Lokasi apel pagi Senin (Kantor Bupati, berlaku semua pegawai) & Rabu (per kelompok OPD)
+// Lokasi apel pagi Senin (Kantor Bupati, berlaku semua pegawai) & Rabu (per kelompok OPD),
+// serta apel BULANAN pada tanggal tetap (mis. tanggal 17 — Apel Kesadaran Nasional, semua pegawai).
 export interface ApelLocation {
   id: string;
   name: string;
-  weekday: 1 | 3; // 1 = Senin, 3 = Rabu
-  group_name: string | null; // null = berlaku utk semua pegawai (khusus Senin)
+  weekday: 1 | 3 | null; // 1 = Senin, 3 = Rabu; null bila jadwal bulanan (lihat day_of_month)
+  day_of_month: number | null; // 1-31; terisi utk apel bulanan pada tanggal tetap tiap bulan, selain weekday
+  group_name: string | null; // null = berlaku utk semua pegawai (khusus Senin & apel bulanan)
   latitude: number;
   longitude: number;
   radius_meters: number;
   is_active: boolean;
+  cancelled_date: string | null; // "YYYY-MM-DD" — bila diisi & sama dgn tanggal hari ini (WITA),
+  // apel di lokasi ini dianggap DITIADAKAN pada tanggal tsb saja (sekali pakai, bukan permanen);
+  // presensi masuk pada hari itu kembali wajib di radius kantor. is_active tetap true (utk jadwal berikutnya).
   created_at: string;
 }
 

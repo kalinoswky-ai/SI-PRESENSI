@@ -7,8 +7,11 @@ import {
   isFridayWita,
   formatDistance,
   isLateClockIn,
+  isBeforeWorkEnd,
   witaDateKey,
+  witaDayOfMonth,
   witaIsoWeekday,
+  witaTimeHHMM,
 } from "@/lib/geo";
 import { notifyLateAttendance } from "@/lib/notifications/notify";
 import type { ApelLocation, Office, WorkMode } from "@/types";
@@ -111,25 +114,33 @@ export async function POST(request: NextRequest) {
   const distance = distanceInMeters(latitude, longitude, office.latitude, office.longitude);
   const withinOfficeGeofence = distance <= office.radius_meters;
 
-  // 3c. Lokasi apel pagi Senin (Kantor Bupati, semua pegawai) & Rabu (per kelompok OPD).
-  //     Absen masuk pada hari tsb boleh dilakukan dari lokasi apel, bukan hanya kantor.
-  //     Dihitung ulang di server: kandidat lokasi ditentukan dari hari server (WITA) +
-  //     kelompok apel pegawai, klien hanya mengirim ID lokasi mana yang ia hadiri.
+  // 3c. Lokasi apel pagi: jadwal MINGGUAN Senin (Kantor Bupati, semua pegawai) & Rabu (per
+  //     kelompok OPD), maupun jadwal BULANAN pada tanggal tetap (mis. tanggal 17 — Apel
+  //     Kesadaran Nasional, biasanya semua pegawai). Absen masuk pada hari tsb boleh
+  //     dilakukan dari lokasi apel, bukan hanya kantor. Dihitung ulang di server: kandidat
+  //     lokasi ditentukan dari hari/tanggal server (WITA) + kelompok apel pegawai, klien
+  //     hanya mengirim ID lokasi mana yang ia hadiri.
+  //     Lokasi yang `cancelled_date`-nya = tanggal hari ini dianggap TIDAK TERSEDIA
+  //     (apel ditiadakan pada tanggal tsb saja) — presensi otomatis kembali wajib di kantor.
   const weekday = witaIsoWeekday(serverTime);
+  const dayOfMonth = witaDayOfMonth(serverTime);
+  const todayKey = witaDateKey(serverTime);
   let apelLocation: ApelLocation | null = null;
   let apelDistance: number | null = null;
   let withinApelGeofence = false;
+  let apelCancelledToday = false; // apel dijadwalkan hari ini tapi seluruh lokasi yg relevan dibatalkan
 
-  if (type === "in" && (weekday === 1 || weekday === 3)) {
-    const { data: apelRows } = await supabase
-      .from("apel_locations")
-      .select("*")
-      .eq("weekday", weekday)
-      .eq("is_active", true);
+  if (type === "in") {
+    const { data: apelRows } = await supabase.from("apel_locations").select("*").eq("is_active", true);
 
-    const candidates = ((apelRows ?? []) as ApelLocation[]).filter(
+    const scheduledToday = ((apelRows ?? []) as ApelLocation[]).filter(
+      (loc) => loc.weekday === weekday || loc.day_of_month === dayOfMonth
+    );
+    const relevant = scheduledToday.filter(
       (loc) => loc.group_name === null || loc.group_name === employee.apel_group
     );
+    const candidates = relevant.filter((loc) => loc.cancelled_date !== todayKey);
+    apelCancelledToday = relevant.length > 0 && candidates.length === 0;
 
     if (candidates.length === 1) {
       apelLocation = candidates[0];
@@ -153,16 +164,31 @@ export async function POST(request: NextRequest) {
   let status: "valid" | "rejected" = "valid";
   let rejectReason: string | null = null;
 
+  // Absen PULANG hanya boleh dilakukan TEPAT pada jam pulang (work_end) kantor atau setelahnya —
+  // sebelum jam tsb, clock-out selalu ditolak, apa pun lokasi/mode kerjanya.
+  const beforeWorkEnd = type === "out" && isBeforeWorkEnd(serverTime, office.work_end);
+
   // Radius kantor HANYA diwajibkan untuk absen MASUK (mode WFO). Absen PULANG tidak pernah
   // ditolak karena lokasi — pegawai yang audit/tugas lapangan hingga lewat jam kantor tetap
   // bisa absen pulang; titik koordinat sebenarnya tetap direkam untuk jejak audit.
-  if (type === "in" && workMode === "wfo" && !withinGeofence) {
+  if (beforeWorkEnd) {
     status = "rejected";
-    rejectReason = apelLocation
-      ? `Lokasi di luar radius kantor (${Math.round(distance)}m) maupun lokasi apel "${apelLocation.name}" (${Math.round(
-          apelDistance ?? 0
-        )}m, maksimal ${apelLocation.radius_meters}m).`
-      : `Lokasi di luar radius kantor (jarak ${Math.round(distance)}m, maksimal ${office.radius_meters}m).`;
+    rejectReason = `Absen pulang belum bisa dilakukan. Jam pulang yang ditentukan adalah pukul ${office.work_end} WITA — saat ini baru pukul ${witaTimeHHMM(
+      serverTime
+    )} WITA. Absen pulang hanya dapat dilakukan tepat pukul ${office.work_end} WITA atau setelahnya.`;
+  } else if (type === "in" && workMode === "wfo" && !withinGeofence) {
+    status = "rejected";
+    if (apelCancelledToday) {
+      rejectReason = `Apel pagi hari ini ditiadakan, presensi kembali dilakukan di Kantor Inspektorat. Lokasi Anda di luar radius kantor (jarak ${Math.round(
+        distance
+      )}m, maksimal ${office.radius_meters}m).`;
+    } else {
+      rejectReason = apelLocation
+        ? `Lokasi di luar radius kantor (${Math.round(distance)}m) maupun lokasi apel "${apelLocation.name}" (${Math.round(
+            apelDistance ?? 0
+          )}m, maksimal ${apelLocation.radius_meters}m).`
+        : `Lokasi di luar radius kantor (jarak ${Math.round(distance)}m, maksimal ${office.radius_meters}m).`;
+    }
   } else if (!faceMatch) {
     status = "rejected";
     rejectReason = "Wajah tidak sesuai dengan data terdaftar.";
@@ -183,6 +209,9 @@ export async function POST(request: NextRequest) {
   // Label lokasi utk jejak audit. Absen PULANG boleh di mana saja (mis. tugas lapangan/audit yang
   // belum selesai saat jam pulang kantor) — koordinat GPS + label ini selalu tercatat.
   let locationLabel: string | null = apelLocation?.name ?? null;
+  if (type === "in" && apelCancelledToday && !apelLocation) {
+    locationLabel = "Apel ditiadakan — absen di Kantor Inspektorat";
+  }
   if (type === "out") {
     if (workMode === "wfh") locationLabel = "Pulang dari rumah (WFH)";
     else if (withinOfficeGeofence) locationLabel = "Pulang dari kantor";
@@ -233,6 +262,7 @@ export async function POST(request: NextRequest) {
     isLate,
     workMode,
     apelLocationName: apelLocation?.name ?? null,
+    apelCancelledToday,
     locationLabel,
   });
 }

@@ -53,6 +53,14 @@ tergantung pihak ketiga.
   admin, riwayat pegawai, dan Excel (kolom Lokasi, Latitude, Longitude, Peta).
 - Jalankan `supabase/update-time-off-logout-lokasi.sql` sekali di SQL Editor.
 
+## Pembaruan: Server Clock Sinkron
+
+- Penyebab jam tertinggal: endpoint `/api/server-time` ter-cache sebagai halaman statis saat build,
+  sehingga jam yang tampil = waktu deploy terakhir. Kini dipaksa dinamis (`force-dynamic`, `no-store`).
+- Jam berjalan dikoreksi latensi jaringan, memakai timer monotonik, dan sinkron ulang tiap 5 menit
+  serta saat aplikasi dibuka kembali. Bila jam HP berbeda >1 menit dari server, muncul peringatan.
+- Penentuan "hari ini" (hari Jumat/apel, cuti hari ini, absen hari ini) memakai tanggal server WITA.
+
 ## Pembaruan: Edit & Hapus Data (khusus Admin)
 
 - **People (Data Pegawai)** — tombol *Edit* & *Hapus* per pegawai. Hapus = permanen (akun login,

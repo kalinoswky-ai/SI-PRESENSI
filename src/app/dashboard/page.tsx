@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useGeolocation } from "@/lib/useGeolocation";
 import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
 import ServerClock from "@/components/ServerClock";
-import { distanceInMeters, formatWita, isFridayWita, witaIsoWeekday } from "@/lib/geo";
+import { distanceInMeters, formatWita, isFridayWita, witaDateKey, witaIsoWeekday } from "@/lib/geo";
 import type { ApelLocation, AttendanceRecord, Employee, LeaveRequest, Office, WorkMode } from "@/types";
 import { LEAVE_TYPE_LABEL } from "@/types";
 import { CheckCircle2, MapPin, XCircle, LogIn, LogOut, CalendarClock, ScanFace, Building2, Home } from "lucide-react";
@@ -38,19 +38,18 @@ export default function DashboardPage() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) return;
 
-      const todayStr = new Date().toISOString().slice(0, 10);
-
-      // Hari Senin/Rabu/Jumat ditentukan dari jam server, bukan jam HP pegawai
-      let weekday = 0;
+      // Hari Senin/Rabu/Jumat & tanggal "hari ini" ditentukan dari jam server (WITA), bukan jam HP
+      // pegawai — dan bukan tanggal UTC (pukul 00.00–08.00 WITA tanggal UTC masih kemarin).
+      let serverNow = new Date();
       try {
-        const st = await fetch("/api/server-time").then((r) => r.json());
-        const serverNow = new Date(st.serverTime);
-        setIsFriday(isFridayWita(serverNow));
-        weekday = witaIsoWeekday(serverNow);
+        const st = await fetch(`/api/server-time?t=${Date.now()}`, { cache: "no-store" }).then((r) => r.json());
+        serverNow = new Date(st.serverTime);
       } catch {
-        setIsFriday(isFridayWita(new Date()));
-        weekday = witaIsoWeekday(new Date());
+        // gagal mengambil jam server: pakai jam perangkat hanya untuk tampilan awal
       }
+      setIsFriday(isFridayWita(serverNow));
+      const weekday = witaIsoWeekday(serverNow);
+      const todayStr = witaDateKey(serverNow);
 
       const [{ data: emp }, { data: off }, { data: att }, { data: leave }, apelRes] = await Promise.all([
         supabase.from("employees").select("*").eq("id", userData.user.id).single(),
@@ -59,7 +58,7 @@ export default function DashboardPage() {
           .from("attendance")
           .select("*")
           .eq("employee_id", userData.user.id)
-          .gte("server_time", new Date(new Date().setHours(0, 0, 0, 0)).toISOString())
+          .gte("server_time", `${todayStr}T00:00:00+08:00`)
           .order("server_time", { ascending: true }),
         supabase
           .from("leave_requests")

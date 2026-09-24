@@ -47,6 +47,7 @@ export default function EmployeeNav({ title }: { title: string }) {
               <Link
                 key={link.href}
                 href={link.href}
+                aria-current={pathname === link.href ? "page" : undefined}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
                   pathname === link.href
                     ? "bg-gradient-to-r from-brand-600 to-emerald-600 text-white shadow-sm"
@@ -75,12 +76,17 @@ export default function EmployeeNav({ title }: { title: string }) {
           <Link
             key={link.href}
             href={link.href}
-            className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium transition ${
-              pathname === link.href ? "text-brand-700" : "text-slate-500"
-            }`}
+            aria-current={pathname === link.href ? "page" : undefined}
+            className="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium transition"
           >
-            <link.icon size={20} />
-            {link.label}
+            <span
+              className={`flex h-7 w-12 items-center justify-center rounded-full transition ${
+                pathname === link.href ? "bg-brand-100 text-brand-700" : "text-slate-500"
+              }`}
+            >
+              <link.icon size={20} />
+            </span>
+            <span className={pathname === link.href ? "text-brand-700" : "text-slate-500"}>{link.label}</span>
           </Link>
         ))}
       </nav>

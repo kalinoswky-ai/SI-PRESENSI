@@ -106,3 +106,69 @@ body {
     transition: none;
   }
 }
+
+/* ===== Area Pegawai (/dashboard/*) — semua selector di-scope oleh .employee-dashboard =====
+   Tidak memengaruhi halaman Admin karena Admin tidak memakai kelas ini. */
+.employee-dashboard .card {
+  border-radius: 1.25rem;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 28px -16px rgba(15, 23, 42, 0.22);
+}
+
+.employee-dashboard .btn-primary {
+  min-height: 3rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.employee-dashboard .ep-hero {
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  padding: 1rem;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(13, 148, 136, 0.12), transparent 55%),
+    radial-gradient(circle at 0% 100%, rgba(37, 99, 235, 0.09), transparent 55%),
+    rgba(255, 255, 255, 0.76);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 28px -16px rgba(15, 23, 42, 0.22);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+.employee-dashboard .ep-avatar {
+  display: flex;
+  height: 2.75rem;
+  width: 2.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #1d4ed8, #0d9488);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.employee-dashboard .ep-icon-btn {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.625rem;
+  color: #475569;
+}
+
+.employee-dashboard .ep-icon-btn:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.employee-dashboard .ep-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.employee-dashboard .ep-icon-btn:focus-visible,
+.employee-dashboard .ep-link:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}

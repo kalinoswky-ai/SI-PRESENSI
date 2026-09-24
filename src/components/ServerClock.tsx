@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { formatWita } from "@/lib/geo";
 
 const RESYNC_MS = 5 * 60 * 1000; // sinkron ulang tiap 5 menit & saat tab kembali aktif
 
@@ -53,20 +52,41 @@ export default function ServerClock() {
   }, []);
 
   const diffMinutes = Math.round(Math.abs(deviceDiffMs) / 60000);
+  const timeText = now
+    ? new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Makassar",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      }).format(now)
+    : null;
+  const dateText = now
+    ? new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Makassar",
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).format(now)
+    : null;
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-600">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+      <div className="flex items-center gap-3 rounded-xl bg-slate-900/[0.04] px-3 py-2.5">
+        <span className="relative flex h-2 w-2 shrink-0">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 motion-reduce:animate-none" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
         </span>
-        <span>
-          Server Clock:{" "}
-          <strong className="font-semibold text-slate-800">
-            {now ? formatWita(now) : failed ? "gagal memuat" : "menyinkronkan..."}
-          </strong>
-        </span>
+        <div className="leading-tight">
+          <p className="text-[11px] text-slate-500">Server Clock (WITA)</p>
+          {timeText ? (
+            <p className="text-2xl font-bold tabular-nums text-slate-900">{timeText}</p>
+          ) : (
+            <p className="text-sm font-semibold text-slate-800">{failed ? "gagal memuat" : "menyinkronkan..."}</p>
+          )}
+          {dateText && <p className="text-xs text-slate-500">{dateText}</p>}
+        </div>
       </div>
       {now && Math.abs(deviceDiffMs) > 60000 && (
         <p className="text-xs text-amber-600">

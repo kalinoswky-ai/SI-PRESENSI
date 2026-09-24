@@ -6,7 +6,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useGeolocation } from "@/lib/useGeolocation";
 import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
 import ServerClock from "@/components/ServerClock";
-import { distanceInMeters, formatWita, isFridayWita, witaDateKey, witaIsoWeekday } from "@/lib/geo";
+import { distanceInMeters, isFridayWita, witaDateKey, witaIsoWeekday } from "@/lib/geo";
+import { formatTime } from "@/lib/employee/history";
+import RecentHistory from "@/components/employee-dashboard/RecentHistory";
 import type { ApelLocation, AttendanceRecord, Employee, LeaveRequest, Office, WorkMode } from "@/types";
 import { LEAVE_TYPE_LABEL } from "@/types";
 import { CheckCircle2, MapPin, XCircle, LogIn, LogOut, CalendarClock, ScanFace, Building2, Home } from "lucide-react";
@@ -188,37 +190,64 @@ export default function DashboardPage() {
 
   const withinGeofence = withinOfficeGeofence || withinApelGeofence;
 
+  const initials =
+    (employee?.full_name ?? "")
+      .split(",")[0]
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase() || "P";
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg font-bold text-slate-900">Halo, {employee?.full_name}</h1>
-          <p className="text-sm text-slate-500">{employee?.position ?? "Pegawai"} · NIP {employee?.nip}</p>
+      <section className="ep-hero space-y-3">
+        <div className="flex items-start gap-3">
+          <span className="ep-avatar" aria-hidden="true">
+            {initials}
+          </span>
+          <div className="min-w-0">
+            <h1 className="break-words text-lg font-bold leading-snug text-slate-900">Halo, {employee?.full_name}</h1>
+            <p className="text-sm text-slate-500">{employee?.position ?? "Pegawai"} · NIP {employee?.nip}</p>
+          </div>
         </div>
         <ServerClock />
-      </div>
+      </section>
 
       {/* Status hari ini */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="card flex items-center justify-between">
-          <div>
-            <p className="text-sm text-slate-500">Absen Masuk</p>
-            <p className="font-semibold text-slate-800">
-              {validIn ? formatWita(new Date(validIn.server_time)) : "Belum absen"}
-            </p>
-          </div>
-          {validIn ? <CheckCircle2 className="text-emerald-500" /> : <LogIn className="text-slate-300" />}
+      <section className="card !p-0" aria-label="Status absensi hari ini">
+        <div className="grid grid-cols-2 divide-x divide-slate-200/70">
+          {[
+            { label: "Absen Masuk", rec: validIn, Icon: LogIn },
+            { label: "Absen Pulang", rec: validOut, Icon: LogOut },
+          ].map(({ label, rec, Icon }) => (
+            <div key={label} className="p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-500">{label}</p>
+                {rec ? <CheckCircle2 size={20} className="text-emerald-500" /> : <Icon size={20} className="text-slate-300" />}
+              </div>
+              <p className={`mt-1 text-xl font-bold tabular-nums ${rec ? "text-slate-900" : "text-slate-400"}`}>
+                {rec ? formatTime(rec.server_time) : "Belum absen"}
+              </p>
+              {rec && (
+                <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-slate-500">
+                  WITA
+                  {label === "Absen Masuk" &&
+                    (rec.is_late ? (
+                      <span className="rounded-full bg-amber-50 px-1.5 py-0.5 font-medium text-amber-700">Terlambat</span>
+                    ) : (
+                      <span className="rounded-full bg-teal-50 px-1.5 py-0.5 font-medium text-teal-700">Tepat waktu</span>
+                    ))}
+                  {rec.work_mode === "wfh" && (
+                    <span className="rounded-full bg-brand-50 px-1.5 py-0.5 font-medium text-brand-700">WFH</span>
+                  )}
+                </p>
+              )}
+            </div>
+          ))}
         </div>
-        <div className="card flex items-center justify-between">
-          <div>
-            <p className="text-sm text-slate-500">Absen Pulang</p>
-            <p className="font-semibold text-slate-800">
-              {validOut ? formatWita(new Date(validOut.server_time)) : "Belum absen"}
-            </p>
-          </div>
-          {validOut ? <CheckCircle2 className="text-emerald-500" /> : <LogOut className="text-slate-300" />}
-        </div>
-      </div>
+      </section>
 
       {/* Flow absen */}
       {!employee?.face_descriptor ? (
@@ -389,6 +418,8 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      <RecentHistory />
     </div>
   );
 }

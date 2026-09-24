@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getLeaveApprover } from "@/lib/admin/auth";
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -8,15 +9,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ error: "Belum login." }, { status: 401 });
   }
 
-  const { data: requester } = await supabase
-    .from("employees")
-    .select("role")
-    .eq("id", userData.user.id)
-    .single();
-
-  if (requester?.role !== "admin") {
+  // Hanya Inspektur (pimpinan bertanda can_approve_leave) yang boleh memutuskan. Admin hanya melihat.
+  const approver = await getLeaveApprover();
+  if (!approver) {
     return NextResponse.json(
-      { error: "Hanya Admin yang dapat menyetujui/menolak pengajuan." },
+      { error: "Hanya Inspektur yang berwenang menyetujui/menolak pengajuan cuti, izin, dan sakit." },
       { status: 403 }
     );
   }

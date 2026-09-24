@@ -31,6 +31,8 @@ export interface ActivityItem {
 export interface AdminDashboardData {
   adminName: string | null;
   isPimpinan: boolean;
+  /** true hanya untuk Inspektur (penyetuju cuti/izin/sakit). Admin & Sekretaris = false. */
+  canApproveLeave: boolean;
   positionLabel: string | null;
   todayLabel: string;
   totalEmployees: number;

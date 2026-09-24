@@ -44,7 +44,7 @@ const TONE_BADGE: Record<ActivityTone, string> = {
  * komponen ini hanya menyajikan. Seluruh gaya di-scope oleh kelas `.admin-dashboard`.
  */
 export default function AdminDashboardView({ data }: { data: AdminDashboardData }) {
-  const { isPimpinan, breakdown: b } = data;
+  const { isPimpinan, canApproveLeave, breakdown: b } = data;
   const trendHasData = data.trend.some((d) => d.onTime + d.late > 0);
 
   const stats = [
@@ -70,8 +70,8 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
     { href: "/admin/reports", label: "Reports", hint: "Rekap kehadiran & ekspor BKPSDM", icon: BarChart3 },
     {
       href: "/admin/leave",
-      label: isPimpinan ? "Cuti/Izin Pegawai" : "Kelola Cuti/Izin",
-      hint: isPimpinan ? "Lihat status pengajuan" : "Setujui atau tolak pengajuan",
+      label: canApproveLeave ? "Setujui Cuti/Izin" : "Cuti/Izin Pegawai",
+      hint: canApproveLeave ? "Setujui atau tolak pengajuan" : "Lihat status pengajuan (persetujuan oleh Inspektur)",
       icon: Briefcase,
     },
     ...(!isPimpinan
@@ -95,7 +95,8 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
           {isPimpinan && (
             <p className="mt-0.5 text-sm text-slate-500">
               Statistik kehadiran seluruh pegawai Inspektorat — Anda login sebagai{" "}
-              <strong>{data.positionLabel || "Pimpinan"}</strong> (mode lihat saja).
+              <strong>{data.positionLabel || "Pimpinan"}</strong>{" "}
+              {canApproveLeave ? "(lihat statistik; berwenang menyetujui cuti/izin/sakit)." : "(mode lihat saja)."}
             </p>
           )}
         </div>
@@ -197,7 +198,7 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
                       <Briefcase size={18} className="shrink-0 text-brand-600" />
                       <span className="flex-1 text-sm text-brand-900">
                         {data.pendingLeaveCount} pengajuan cuti/izin{" "}
-                        {isPimpinan ? "sedang menunggu diproses Admin" : "menunggu persetujuan Anda"}
+                        {canApproveLeave ? "menunggu persetujuan Anda" : "menunggu persetujuan Inspektur"}
                       </span>
                       <ChevronRight size={16} className="shrink-0 text-brand-500" />
                     </Link>

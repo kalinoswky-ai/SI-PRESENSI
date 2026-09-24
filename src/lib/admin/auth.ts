@@ -71,3 +71,25 @@ export async function getViewerProfile(): Promise<{
     position: (data.position as string | null) ?? null,
   };
 }
+
+/**
+ * Penyetuju pengajuan cuti/izin/sakit: HANYA akun role 'pimpinan' yang aktif dan bertanda
+ * can_approve_leave = true (diberikan ke Inspektur). Admin & Sekretaris hanya melihat.
+ * Gagal-tertutup: bila query error (mis. migrasi belum dijalankan) hasilnya null = tidak berwenang.
+ * Dipakai di API (penegakan sesungguhnya, berpasangan dengan RLS is_leave_approver()) dan tampilan.
+ */
+export async function getLeaveApprover(): Promise<{ id: string; name: string } | null> {
+  const supabase = createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return null;
+
+  const { data, error } = await supabase
+    .from("employees")
+    .select("role, is_active, full_name, can_approve_leave")
+    .eq("id", userData.user.id)
+    .single();
+
+  if (error || !data) return null;
+  if (data.role !== "pimpinan" || !data.is_active || data.can_approve_leave !== true) return null;
+  return { id: userData.user.id, name: data.full_name as string };
+}

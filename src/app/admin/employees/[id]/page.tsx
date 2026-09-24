@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
 import type { Employee } from "@/types";
 import { CheckCircle2, ScanFace, Clock, XCircle } from "lucide-react";
+import DeleteEmployeeButton from "../DeleteEmployeeButton";
 
 export default function EmployeeDetailPage() {
   const params = useParams<{ id: string }>();
@@ -21,9 +22,13 @@ export default function EmployeeDetailPage() {
   const [reviewing, setReviewing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectBox, setShowRejectBox] = useState(false);
+  const [selfId, setSelfId] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState(false);
 
   useEffect(() => {
     async function load() {
+      const { data: me } = await supabase.auth.getUser();
+      setSelfId(me.user?.id ?? null);
       const { data } = await supabase.from("employees").select("*").eq("id", params.id).single();
       setEmployee(data as Employee);
       setLoading(false);
@@ -44,6 +49,8 @@ export default function EmployeeDetailPage() {
       setError(json.error ?? "Gagal menyimpan.");
     } else {
       setEmployee((prev) => (prev ? { ...prev, ...fields } : prev));
+      setSavedMsg(true);
+      setTimeout(() => setSavedMsg(false), 2500);
     }
     setSaving(false);
   }
@@ -183,6 +190,15 @@ export default function EmployeeDetailPage() {
         </div>
 
         {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        {savedMsg && (
+          <p className="flex items-center gap-1.5 text-sm text-emerald-600">
+            <CheckCircle2 size={15} /> Perubahan tersimpan.
+          </p>
+        )}
+        <p className="text-xs text-slate-400">
+          Ubah isian lalu klik di luar kolom — perubahan tersimpan otomatis dan tercatat di Riwayat
+          Perubahan.
+        </p>
       </div>
 
       {employee.face_enrollment_status === "pending" && employee.pending_photo_url && (
@@ -305,6 +321,20 @@ export default function EmployeeDetailPage() {
           </div>
         )}
       </div>
+
+      {employee.id !== selfId && (
+        <div className="card space-y-3 border-red-200">
+          <div>
+            <p className="text-sm font-semibold text-red-700">Zona Berbahaya</p>
+            <p className="text-sm text-slate-500">
+              Hapus pegawai ini beserta seluruh data absensi, pengajuan cuti/izin, dan fotonya secara
+              permanen. Untuk pegawai yang pindah tugas/pensiun, lebih aman gunakan tombol{" "}
+              <strong>Nonaktifkan</strong> di atas.
+            </p>
+          </div>
+          <DeleteEmployeeButton id={employee.id} name={employee.full_name} redirectTo="/admin/employees" />
+        </div>
+      )}
     </div>
   );
 }

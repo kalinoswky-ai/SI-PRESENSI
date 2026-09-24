@@ -1,4 +1,5 @@
 import "server-only";
+import { fetchAllRows } from "@/lib/supabase/fetchAll";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildAttendanceWorkbook } from "@/lib/reports/attendanceWorkbook";
 import { sendEmailWithAttachment } from "@/lib/notifications/email";
@@ -46,18 +47,22 @@ export function reportPeriodFor(schedule: Office["bkpsdm_report_schedule"], now 
 export async function generateAndSendBkpsdmReport(office: Office, from: string, to: string) {
   const admin = createAdminClient();
 
-  const { data: records, error } = await admin
-    .from("attendance")
-    .select("*, employees(full_name, nip, position)")
-    .gte("server_time", `${from}T00:00:00.000Z`)
-    .lte("server_time", `${to}T23:59:59.999Z`)
-    .order("server_time", { ascending: true });
+  const { data: records, error } = await fetchAllRows((a, b) =>
+    admin
+      .from("attendance")
+      .select("*, employees(full_name, nip, position)")
+      .gte("server_time", `${from}T00:00:00+08:00`)
+      .lte("server_time", `${to}T23:59:59.999+08:00`)
+      .order("server_time", { ascending: true })
+      .order("id")
+      .range(a, b)
+  );
 
   if (error) {
-    throw new Error(`Gagal mengambil data absensi: ${error.message}`);
+    throw new Error(`Gagal mengambil data absensi: ${error}`);
   }
 
-  const workbook = await buildAttendanceWorkbook(records ?? []);
+  const workbook = await buildAttendanceWorkbook(records);
   const buffer = await workbook.xlsx.writeBuffer();
   const filename = `Rekap-Absensi-${office.name.replace(/\s+/g, "-")}_${from}_sd_${to}.xlsx`;
 

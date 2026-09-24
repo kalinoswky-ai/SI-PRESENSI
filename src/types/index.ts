@@ -77,6 +77,8 @@ export interface AttendanceRecord {
   apel_location_id: string | null; // lokasi apel Senin/Rabu yang dipakai (jika ada)
   location_label: string | null; // nama lokasi apel, utk jejak audit di riwayat/laporan
   created_at: string;
+  edited_at?: string | null; // terisi bila data dikoreksi Admin
+  edit_note?: string | null; // alasan koreksi
   employees?: Pick<Employee, "full_name" | "nip" | "position">;
 }
 

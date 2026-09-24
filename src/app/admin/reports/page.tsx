@@ -1,17 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
-import { formatWita } from "@/lib/geo";
-import { Download, Users, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import { fetchAllRows } from "@/lib/supabase/fetchAll";
+import { formatWita, witaDateKey } from "@/lib/geo";
+import Link from "next/link";
+import { Download, Users, CheckCircle2, AlertTriangle, XCircle, Pencil } from "lucide-react";
+import DeleteAttendanceRangeButton from "@/components/DeleteAttendanceRangeButton";
 
 // Selalu render ulang & ambil data terbaru dari Supabase — jangan di-cache Next.js.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 function firstOfMonthStr() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return `${witaDateKey(new Date()).slice(0, 8)}01`;
 }
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return witaDateKey(new Date());
 }
 
 export default async function ReportsPage({
@@ -23,13 +25,19 @@ export default async function ReportsPage({
   const from = searchParams.from || firstOfMonthStr();
   const to = searchParams.to || todayStr();
 
+  // fetchAllRows: query biasa dibatasi 1000 baris oleh Supabase sehingga rekap bisa terpotong
   const [{ data: employees }, { data: records }] = await Promise.all([
     supabase.from("employees").select("id, full_name, nip, position").eq("is_active", true).order("full_name"),
-    supabase
-      .from("attendance")
-      .select("employee_id, type, status, is_late")
-      .gte("server_time", `${from}T00:00:00.000Z`)
-      .lte("server_time", `${to}T23:59:59.999Z`),
+    fetchAllRows<{ employee_id: string; type: string; status: string; is_late: boolean }>((a, b) =>
+      supabase
+        .from("attendance")
+        .select("employee_id, type, status, is_late")
+        .gte("server_time", `${from}T00:00:00+08:00`)
+        .lte("server_time", `${to}T23:59:59.999+08:00`)
+        .order("server_time", { ascending: true })
+        .order("id")
+        .range(a, b)
+    ),
   ]);
 
   const rows = (records ?? []) as { employee_id: string; type: string; status: string; is_late: boolean }[];
@@ -43,7 +51,7 @@ export default async function ReportsPage({
     const hadir = mine.filter((r) => r.status === "valid" && r.type === "in").length;
     const telat = mine.filter((r) => r.status === "valid" && r.type === "in" && r.is_late).length;
     const ditolak = mine.filter((r) => r.status === "rejected").length;
-    return { ...e, hadir, telat, ditolak };
+    return { ...e, hadir, telat, ditolak, total: mine.length };
   });
 
   const exportParams = new URLSearchParams({ from, to });
@@ -118,6 +126,7 @@ export default async function ReportsPage({
               <th className="px-4 py-3">Hadir</th>
               <th className="px-4 py-3">Terlambat</th>
               <th className="px-4 py-3">Ditolak</th>
+              <th className="px-4 py-3 text-right">Kelola Data</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -130,11 +139,30 @@ export default async function ReportsPage({
                 <td className="px-4 py-3 text-slate-600">{e.hadir}</td>
                 <td className="px-4 py-3 text-amber-600">{e.telat}</td>
                 <td className="px-4 py-3 text-red-500">{e.ditolak}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-right">
+                  <Link
+                    href={`/admin/attendance/log?employee_id=${e.id}&from=${from}&to=${to}`}
+                    className="mr-3 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline"
+                  >
+                    <Pencil size={13} /> Edit
+                  </Link>
+                  {e.total > 0 && (
+                    <DeleteAttendanceRangeButton
+                      compact
+                      label="Hapus"
+                      from={from}
+                      to={to}
+                      count={e.total}
+                      employeeId={e.id}
+                      description={`Seluruh data absensi ${e.full_name}.`}
+                    />
+                  )}
+                </td>
               </tr>
             ))}
             {perEmployee.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
                   Belum ada data pegawai aktif.
                 </td>
               </tr>
@@ -142,6 +170,37 @@ export default async function ReportsPage({
           </tbody>
         </table>
       </div>
+
+      {rows.length > 0 && (
+        <div className="card space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Kelola Data Periode Ini</p>
+            <p className="text-xs text-slate-500">
+              Bersihkan data yang salah atau tidak diperlukan (mis. data uji coba). Setiap penghapusan wajib
+              beralasan dan tercatat di Timesheets &gt; Riwayat Perubahan.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {totalRejected > 0 && (
+              <DeleteAttendanceRangeButton
+                label={`Hapus data Ditolak (${totalRejected})`}
+                from={from}
+                to={to}
+                count={totalRejected}
+                status="rejected"
+                description="Seluruh data absensi berstatus Ditolak (semua pegawai)."
+              />
+            )}
+            <DeleteAttendanceRangeButton
+              label={`Hapus semua data periode (${rows.length})`}
+              from={from}
+              to={to}
+              count={rows.length}
+              description="SELURUH data absensi semua pegawai."
+            />
+          </div>
+        </div>
+      )}
 
       <p className="text-xs text-slate-400">
         Data dihitung dari waktu server ({formatWita(new Date())} WITA saat halaman ini dimuat). Untuk log

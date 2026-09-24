@@ -1,14 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
-import { formatWita, mapsUrl, formatDistance } from "@/lib/geo";
-import { Download, CheckCircle2, XCircle, MapPin } from "lucide-react";
+import { fetchAllRows } from "@/lib/supabase/fetchAll";
+import { witaDateKey } from "@/lib/geo";
+import { Download } from "lucide-react";
 import AttendanceTabs from "../AttendanceTabs";
+import AttendanceLogTable from "./AttendanceLogTable";
+import type { AttendanceRecord } from "@/types";
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
+// Selalu render ulang & ambil data terbaru dari Supabase — jangan di-cache Next.js.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function firstOfMonthStr() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return `${witaDateKey(new Date()).slice(0, 8)}01`;
 }
 
 export default async function AttendanceLogPage({
@@ -18,25 +21,23 @@ export default async function AttendanceLogPage({
 }) {
   const supabase = createClient();
   const from = searchParams.from || firstOfMonthStr();
-  const to = searchParams.to || todayStr();
+  const to = searchParams.to || witaDateKey(new Date());
 
-  const { data: employees } = await supabase
-    .from("employees")
-    .select("id, full_name, nip")
-    .order("full_name");
-
-  let query = supabase
-    .from("attendance")
-    .select("*, employees(full_name, nip, position)")
-    .gte("server_time", `${from}T00:00:00+08:00`)
-    .lte("server_time", `${to}T23:59:59.999+08:00`)
-    .order("server_time", { ascending: false });
-
-  if (searchParams.employee_id) {
-    query = query.eq("employee_id", searchParams.employee_id);
-  }
-
-  const { data: records } = await query;
+  const [{ data: employees }, { data: office }, { data: records, error }] = await Promise.all([
+    supabase.from("employees").select("id, full_name, nip").order("full_name"),
+    supabase.from("offices").select("work_start, friday_hybrid").limit(1).single(),
+    fetchAllRows<AttendanceRecord>((a, b) => {
+      let q = supabase
+        .from("attendance")
+        .select("*, employees(full_name, nip, position)")
+        .gte("server_time", `${from}T00:00:00+08:00`)
+        .lte("server_time", `${to}T23:59:59.999+08:00`)
+        .order("server_time", { ascending: false })
+        .order("id");
+      if (searchParams.employee_id) q = q.eq("employee_id", searchParams.employee_id);
+      return q.range(a, b);
+    }, { max: 5000 }),
+  ]);
 
   const exportParams = new URLSearchParams({
     from,
@@ -48,13 +49,16 @@ export default async function AttendanceLogPage({
     <div className="space-y-4">
       <div>
         <h1 className="text-lg font-bold text-slate-900">Timesheets</h1>
-        <p className="text-sm text-slate-500">Absensi — log mentah tiap kejadian absen.</p>
+        <p className="text-sm text-slate-500">
+          Absensi — log mentah tiap kejadian absen. Admin dapat mengoreksi (Edit) atau menghapus data yang
+          salah; setiap perubahan tercatat di tab Riwayat Perubahan.
+        </p>
       </div>
 
       <AttendanceTabs active="log" />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-slate-700">Log Absensi</h2>
+        <h2 className="text-sm font-semibold text-slate-700">Log Absensi ({records.length})</h2>
         <a href={`/api/attendance/export?${exportParams.toString()}`} className="btn-primary">
           <Download size={18} />
           Export Excel
@@ -84,86 +88,14 @@ export default async function AttendanceLogPage({
         <button type="submit" className="btn-secondary">Terapkan Filter</button>
       </form>
 
-      <div className="card overflow-x-auto p-0">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500">
-            <tr>
-              <th className="px-4 py-3">Pegawai</th>
-              <th className="px-4 py-3">Jenis</th>
-              <th className="px-4 py-3">Waktu Server</th>
-              <th className="px-4 py-3">Mode</th>
-              <th className="px-4 py-3">Lokasi</th>
-              <th className="px-4 py-3">Wajah</th>
-              <th className="px-4 py-3">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {records?.map((r) => (
-              <tr key={r.id}>
-                <td className="px-4 py-3">
-                  <p className="font-medium text-slate-800">{r.employees?.full_name}</p>
-                  <p className="text-xs text-slate-500">{r.employees?.nip}</p>
-                </td>
-                <td className="px-4 py-3">
-                  {r.type === "in" ? "Masuk" : "Pulang"}
-                  {r.is_late && (
-                    <span className="ml-1 rounded bg-amber-100 px-1 py-0.5 text-xs text-amber-700">
-                      Terlambat
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-slate-600">{formatWita(new Date(r.server_time))}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                      r.work_mode === "wfh" ? "bg-emerald-50 text-emerald-700" : "bg-brand-50 text-brand-700"
-                    }`}
-                  >
-                    {r.work_mode === "wfh" ? "WFH" : "WFO"}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-slate-600">
-                  {r.location_label && <p className="text-xs">{r.location_label}</p>}
-                  <p className="text-xs text-slate-400">
-                    {r.work_mode === "wfh" ? "WFH" : `${formatDistance(r.distance_meters)} dari kantor`}
-                  </p>
-                  <a
-                    href={mapsUrl(r.latitude, r.longitude)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-0.5 inline-flex items-center gap-1 text-xs text-brand-600 hover:underline"
-                  >
-                    <MapPin size={12} /> Lihat peta
-                  </a>
-                </td>
-                <td className="px-4 py-3 text-slate-600">
-                  {r.face_match ? (
-                    <CheckCircle2 className="text-emerald-500" size={16} />
-                  ) : (
-                    <XCircle className="text-red-500" size={16} />
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                      r.status === "valid" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
-                    }`}
-                  >
-                    {r.status === "valid" ? "Valid" : "Ditolak"}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {(!records || records.length === 0) && (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
-                  Tidak ada data absensi pada rentang ini.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {error && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">Gagal memuat data: {error}</p>
+      )}
+
+      <AttendanceLogTable
+        records={records}
+        office={office ? { work_start: office.work_start as string, friday_hybrid: Boolean(office.friday_hybrid) } : null}
+      />
     </div>
   );
 }

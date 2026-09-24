@@ -53,6 +53,23 @@ tergantung pihak ketiga.
   admin, riwayat pegawai, dan Excel (kolom Lokasi, Latitude, Longitude, Peta).
 - Jalankan `supabase/update-time-off-logout-lokasi.sql` sekali di SQL Editor.
 
+## Pembaruan: Edit & Hapus Data (khusus Admin)
+
+- **People (Data Pegawai)** — tombol *Edit* & *Hapus* per pegawai. Hapus = permanen (akun login,
+  absensi, pengajuan cuti/izin, foto) dengan konfirmasi ketik `HAPUS`; tersedia juga di "Zona
+  Berbahaya" halaman Kelola Pegawai. Untuk pegawai pindah/pensiun gunakan *Nonaktifkan*.
+- **Timesheets** — tab *Log Absensi*: Edit (jenis, waktu WITA, status, mode, terlambat, lokasi),
+  Hapus satu data, atau pilih banyak baris lalu *Hapus terpilih*. Klik sel jam di grid mingguan untuk
+  langsung membuka data hari tersebut. Tab baru *Riwayat Perubahan* menampilkan jejak audit.
+- **Reports** — per pegawai: *Edit* (buka log pegawai pada periode itu) & *Hapus* (data periode);
+  serta "Kelola Data Periode Ini" untuk menghapus data Ditolak / seluruh data periode.
+- **Pengaman** — otorisasi dicek di server; alasan wajib untuk koreksi/hapus absensi; setiap
+  perubahan tercatat di tabel `audit_log` (siapa, kapan, alasan, data sebelum/sesudah); Admin tidak
+  bisa menghapus akunnya sendiri atau menurunkan/menghapus satu-satunya Admin aktif.
+- Jalankan `supabase/update-kelola-data-audit.sql` sekali di SQL Editor **sebelum** memakai fitur ini.
+- Rekap Reports, grid Timesheets, dan Export Excel kini mengambil seluruh data (sebelumnya
+  terpotong di 1000 baris) dan memakai batas hari WITA.
+
 ## 1. Setup Supabase
 
 1. Buat project baru di [supabase.com](https://supabase.com) (gratis).

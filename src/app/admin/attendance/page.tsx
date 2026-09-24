@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/fetchAll";
 import { witaDateKey, formatDurationMinutes } from "@/lib/geo";
 import { Download, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import Link from "next/link";
@@ -54,13 +55,19 @@ export default async function TimesheetsGridPage({
     .eq("is_active", true)
     .order("full_name");
 
-  const { data: records } = await supabase
-    .from("attendance")
-    .select("employee_id, type, server_time, status, is_late")
-    .eq("status", "valid")
-    .gte("server_time", `${weekStart}T00:00:00+08:00`)
-    .lte("server_time", `${weekEnd}T23:59:59+08:00`)
-    .order("server_time", { ascending: true });
+  const { data: records } = await fetchAllRows<
+    Pick<AttendanceRecord, "employee_id" | "type" | "server_time" | "status" | "is_late">
+  >((a, b) =>
+    supabase
+      .from("attendance")
+      .select("employee_id, type, server_time, status, is_late")
+      .eq("status", "valid")
+      .gte("server_time", `${weekStart}T00:00:00+08:00`)
+      .lte("server_time", `${weekEnd}T23:59:59.999+08:00`)
+      .order("server_time", { ascending: true })
+      .order("id")
+      .range(a, b)
+  );
 
   const rows = (records ?? []) as Pick<
     AttendanceRecord,
@@ -166,14 +173,16 @@ export default async function TimesheetsGridPage({
                     return (
                       <td key={d} className="px-3 py-3 text-center">
                         {cell ? (
-                          <span
-                            className={`inline-flex items-center gap-1 ${
+                          <Link
+                            href={`/admin/attendance/log?employee_id=${e.id}&from=${d}&to=${d}`}
+                            title="Klik untuk edit/hapus data absensi hari ini"
+                            className={`inline-flex items-center gap-1 underline-offset-2 hover:underline ${
                               cell.late ? "text-amber-600" : "text-slate-700"
                             }`}
                           >
                             {cell.late && <AlertTriangle size={12} />}
-                            {formatDurationMinutes(cell.minutes)}
-                          </span>
+                            {cell.minutes > 0 ? formatDurationMinutes(cell.minutes) : "Masuk"}
+                          </Link>
                         ) : (
                           <span className="text-slate-300">-</span>
                         )}
@@ -200,8 +209,8 @@ export default async function TimesheetsGridPage({
       <p className="text-xs text-slate-400">
         Jam terhitung dari pasangan absen masuk → pulang yang valid pada hari yang sama (WITA).
         <AlertTriangle className="mx-1 inline text-amber-600" size={12} />
-        menandai hari dengan absen masuk terlambat. Untuk log mentah tiap kejadian absen, buka tab{" "}
-        <strong>Log Absensi</strong> di atas.
+        menandai hari dengan absen masuk terlambat. Klik angka jam pada sel untuk membuka data absensi hari
+        itu dan mengoreksi (Edit) atau menghapusnya; atau buka tab <strong>Log Absensi</strong> di atas.
       </p>
     </div>
   );

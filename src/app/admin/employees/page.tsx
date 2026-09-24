@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { UserPlus, ScanFace } from "lucide-react";
+import { UserPlus, ScanFace, Pencil } from "lucide-react";
+import DeleteEmployeeButton from "./DeleteEmployeeButton";
 
 // Selalu render ulang & ambil data terbaru dari Supabase — jangan di-cache Next.js.
 export const dynamic = "force-dynamic";
@@ -8,6 +9,8 @@ export const revalidate = 0;
 
 export default async function EmployeesPage() {
   const supabase = createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  const selfId = userData.user?.id;
   const { data: employees } = await supabase
     .from("employees")
     .select("id, nip, full_name, position, role, is_active, face_descriptor, face_enrollment_status")
@@ -71,10 +74,14 @@ export default async function EmployeesPage() {
                     {e.is_active ? "Aktif" : "Nonaktif"}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right">
-                  <Link href={`/admin/employees/${e.id}`} className="text-brand-600 hover:underline">
-                    Kelola
+                <td className="whitespace-nowrap px-4 py-3 text-right">
+                  <Link
+                    href={`/admin/employees/${e.id}`}
+                    className="mr-3 inline-flex items-center gap-1 text-brand-600 hover:underline"
+                  >
+                    <Pencil size={14} /> Edit
                   </Link>
+                  {e.id !== selfId && <DeleteEmployeeButton id={e.id} name={e.full_name} compact />}
                 </td>
               </tr>
             ))}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { useGeolocation } from "@/lib/useGeolocation";
+import ChangePasswordForm from "@/components/ChangePasswordForm";
 import type { ApelLocation, Office } from "@/types";
 import { MapPin, Save, CheckCircle2, Send, MessageCircle, FileSpreadsheet, Flag, Plus, Trash2 } from "lucide-react";
 
@@ -192,6 +193,9 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <h1 className="text-lg font-bold text-slate-900">Pengaturan</h1>
+
+      {/* ---------- Keamanan Akun: ganti password sendiri ---------- */}
+      <ChangePasswordForm />
 
       <div id="lokasi" className="card space-y-4 scroll-mt-24">
         <h2 className="font-semibold text-slate-800">Lokasi &amp; Geofencing</h2>

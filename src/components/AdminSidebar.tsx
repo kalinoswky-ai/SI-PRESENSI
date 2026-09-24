@@ -18,6 +18,7 @@ import {
   Bell,
   FileSpreadsheet,
   Eye,
+  KeyRound,
 } from "lucide-react";
 
 const mainLinks = [
@@ -33,6 +34,7 @@ const settingsLinks = [
   { href: "/admin/settings#jam-kerja", label: "Work Schedules", sublabel: "Jam Kerja", icon: CalendarClock },
   { href: "/admin/settings#notifikasi", label: "Notifications", sublabel: "WhatsApp / Telegram", icon: Bell },
   { href: "/admin/settings#integrasi", label: "Integrations", sublabel: "Laporan BKPSDM", icon: FileSpreadsheet },
+  { href: "/admin/settings#keamanan", label: "Security", sublabel: "Ubah Password", icon: KeyRound },
 ];
 
 export default function AdminSidebar({
@@ -163,6 +165,15 @@ export default function AdminSidebar({
               Absensi Saya
             </Link>
           )}
+          {isPimpinan && (
+            <Link
+              href="/dashboard/account"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-white/60"
+            >
+              <KeyRound size={18} />
+              Ubah Password
+            </Link>
+          )}
           <button
             onClick={handleLogout}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-white/60"
@@ -193,6 +204,11 @@ export default function AdminSidebar({
             {isPimpinan && (
               <Link href="/dashboard" className="text-slate-500" title="Absensi Saya">
                 <Clock size={18} />
+              </Link>
+            )}
+            {isPimpinan && (
+              <Link href="/dashboard/account" className="text-slate-500" title="Ubah Password">
+                <KeyRound size={18} />
               </Link>
             )}
             <button onClick={handleLogout} className="text-slate-500">

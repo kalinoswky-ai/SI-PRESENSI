@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/fetchAll";
-import { buildAttendanceWorkbook } from "@/lib/reports/attendanceWorkbook";
+import { buildAttendanceWorkbook, EMPLOYEE_EXPORT_COLUMNS, type EmployeeExportRow } from "@/lib/reports/attendanceWorkbook";
 
 // Selalu ambil data terbaru dari Supabase saat export diklik — jangan di-cache Next.js.
 export const dynamic = "force-dynamic";
@@ -46,7 +46,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error }, { status: 500 });
   }
 
-  const workbook = await buildAttendanceWorkbook(records);
+  // Data pegawai TERBARU (semua pegawai, termasuk yang belum punya catatan absen pada periode ini).
+  // Bila export difilter ke satu pegawai, sheet "Data Pegawai" hanya memuat pegawai tsb.
+  const { data: employees, error: empError } = await fetchAllRows<EmployeeExportRow>((a, b) => {
+    let query = supabase
+      .from("employees")
+      .select(EMPLOYEE_EXPORT_COLUMNS)
+      .order("full_name")
+      .order("id");
+    if (employeeId) query = query.eq("id", employeeId);
+    return query.range(a, b);
+  });
+  if (empError) {
+    return NextResponse.json({ error: empError }, { status: 500 });
+  }
+
+  const workbook = await buildAttendanceWorkbook(records, employees);
   const buffer = await workbook.xlsx.writeBuffer();
   const filename = `Rekap-Absensi-Inspektorat-Sumba-Barat_${from}_sd_${to}.xlsx`;
 

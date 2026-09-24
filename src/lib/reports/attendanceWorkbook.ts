@@ -1,7 +1,8 @@
 import "server-only";
 import ExcelJS from "exceljs";
 import { formatDurationMinutes, mapsUrl, witaDateKey } from "@/lib/geo";
-import type { AttendanceRecord } from "@/types";
+import { ROLE_LABEL } from "@/types";
+import type { AttendanceRecord, Employee } from "@/types";
 
 /**
  * Bangun workbook Excel rekap absensi (.xlsx) — dipakai bersama oleh:
@@ -13,7 +14,38 @@ import type { AttendanceRecord } from "@/types";
  *  2. "Jam Pulang" — seluruh catatan absen pulang.
  *  3. "Resume"     — satu baris per pegawai per hari yang menggabungkan jam masuk & jam pulang
  *                    (hanya catatan berstatus Valid; jam masuk = paling awal, jam pulang = paling akhir).
+ *  4. "Data Pegawai" — (opsional) data pegawai TERBARU di sistem: NIP, nama, jabatan, role, email,
+ *                    no HP, kelompok OPD, status akun & status wajah. Hanya dibuat bila daftar
+ *                    pegawai diberikan (export manual admin). Laporan otomatis BKPSDM tidak
+ *                    menyertakannya karena dikirim ke pihak luar.
  */
+
+/** Kolom pegawai yang diekspor. Sengaja TIDAK memuat password, face descriptor, maupun foto. */
+export type EmployeeExportRow = Pick<
+  Employee,
+  | "nip"
+  | "full_name"
+  | "position"
+  | "role"
+  | "email"
+  | "phone"
+  | "apel_group"
+  | "is_active"
+  | "face_enrollment_status"
+  | "created_at"
+  | "updated_at"
+>;
+
+/** Kolom SELECT Supabase yang dibutuhkan addEmployeeSheet — dipakai bersama oleh semua route export. */
+export const EMPLOYEE_EXPORT_COLUMNS =
+  "nip, full_name, position, role, email, phone, apel_group, is_active, face_enrollment_status, created_at, updated_at";
+
+const FACE_LABEL: Record<Employee["face_enrollment_status"], string> = {
+  approved: "Terdaftar",
+  pending: "Menunggu Persetujuan",
+  rejected: "Ditolak",
+  none: "Belum Terdaftar",
+};
 
 const DATE_FMT = new Intl.DateTimeFormat("id-ID", {
   timeZone: "Asia/Makassar",
@@ -166,13 +198,64 @@ function addResumeSheet(workbook: ExcelJS.Workbook, records: AttendanceRecord[])
   styleHeader(sheet);
 }
 
-export async function buildAttendanceWorkbook(records: AttendanceRecord[]) {
+/** Sheet Data Pegawai: seluruh pegawai (aktif & nonaktif) sesuai kondisi database saat export diklik. */
+export function addEmployeeSheet(workbook: ExcelJS.Workbook, employees: EmployeeExportRow[]) {
+  const sheet = workbook.addWorksheet("Data Pegawai");
+  sheet.columns = [
+    { header: "No", key: "no", width: 5 },
+    { header: "NIP", key: "nip", width: 24 },
+    { header: "Nama Pegawai", key: "nama", width: 34 },
+    { header: "Jabatan", key: "jabatan", width: 30 },
+    { header: "Role", key: "role", width: 12 },
+    { header: "Email", key: "email", width: 34 },
+    { header: "No HP", key: "hp", width: 18 },
+    { header: "Kelompok OPD (Apel)", key: "opd", width: 22 },
+    { header: "Status Akun", key: "aktif", width: 13 },
+    { header: "Status Wajah", key: "wajah", width: 22 },
+    { header: "Terdaftar Sejak", key: "dibuat", width: 16 },
+    { header: "Terakhir Diperbarui", key: "diubah", width: 20 },
+  ];
+
+  // NIP (18 digit) & No HP disimpan sebagai TEKS agar Excel tidak memotong / mengubahnya ke notasi ilmiah.
+  sheet.getColumn("nip").numFmt = "@";
+  sheet.getColumn("hp").numFmt = "@";
+
+  employees.forEach((e, i) => {
+    sheet.addRow({
+      no: i + 1,
+      nip: e.nip ?? "-",
+      nama: e.full_name,
+      jabatan: e.position ?? "-",
+      role: ROLE_LABEL[e.role] ?? e.role,
+      email: e.email,
+      hp: e.phone ?? "-",
+      opd: e.apel_group ?? "-",
+      aktif: e.is_active ? "Aktif" : "Nonaktif",
+      wajah: FACE_LABEL[e.face_enrollment_status] ?? "Belum Terdaftar",
+      dibuat: fmtDate(e.created_at),
+      diubah: fmtDate(e.updated_at),
+    });
+  });
+
+  styleHeader(sheet);
+}
+
+export async function buildAttendanceWorkbook(records: AttendanceRecord[], employees?: EmployeeExportRow[]) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Sistem Absensi Digital - Inspektorat Sumba Barat";
 
   addDetailSheet(workbook, records, "in");
   addDetailSheet(workbook, records, "out");
   addResumeSheet(workbook, records);
+  if (employees) addEmployeeSheet(workbook, employees);
 
+  return workbook;
+}
+
+/** Workbook berisi HANYA data pegawai (untuk tombol Export di halaman Data Pegawai). */
+export function buildEmployeeWorkbook(employees: EmployeeExportRow[]) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Sistem Absensi Digital - Inspektorat Sumba Barat";
+  addEmployeeSheet(workbook, employees);
   return workbook;
 }

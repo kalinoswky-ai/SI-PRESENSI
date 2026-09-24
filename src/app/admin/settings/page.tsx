@@ -126,7 +126,15 @@ export default function SettingsPage() {
       is_active: true,
     });
     if (error) {
-      setApelError("Gagal menambah lokasi: " + error.message);
+      // Kolom belum ada di database / cache skema PostgREST belum dimuat ulang → beri petunjuk perbaikan yang jelas.
+      const schemaProblem = /schema cache|day_of_month|cancelled_date|apel_group/i.test(error.message);
+      setApelError(
+        "Gagal menambah lokasi: " +
+          error.message +
+          (schemaProblem
+            ? " — Database belum diperbarui. Jalankan file supabase/fix-apel-lokasi-lengkap.sql di Supabase > SQL Editor, lalu coba lagi."
+            : "")
+      );
       return;
     }
     setNewApel({

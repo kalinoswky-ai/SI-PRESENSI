@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getViewerProfile } from "@/lib/admin/auth";
 import { ROLE_LABEL } from "@/types";
 import Link from "next/link";
-import { UserPlus, ScanFace, Pencil, FileSpreadsheet } from "lucide-react";
+import { UserPlus, ScanFace, Pencil, FileSpreadsheet, Download } from "lucide-react";
 import DeleteEmployeeButton from "./DeleteEmployeeButton";
 
 // Selalu render ulang & ambil data terbaru dari Supabase — jangan di-cache Next.js.
@@ -24,8 +24,14 @@ export default async function EmployeesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-slate-900">Data Pegawai ({employees?.length ?? 0})</h1>
-        {isAdmin && (
-          <div className="flex gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
+          {/* Export hanya membaca data → boleh untuk Admin & Pimpinan. Bukan <Link> agar file diunduh, bukan dinavigasi. */}
+          <a href="/api/employees/export" className="btn-secondary">
+            <Download size={18} />
+            Export Data Pegawai
+          </a>
+          {isAdmin && (
+            <>
             <Link href="/admin/employees/import" className="btn-secondary">
               <FileSpreadsheet size={18} />
               Import Excel
@@ -34,8 +40,9 @@ export default async function EmployeesPage() {
               <UserPlus size={18} />
               Tambah Pegawai
             </Link>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
       {!isAdmin && (
         <p className="text-sm text-slate-500">Mode lihat saja — hubungi Admin untuk menambah/mengubah data pegawai.</p>

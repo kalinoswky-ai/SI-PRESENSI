@@ -48,9 +48,9 @@ export default async function EmployeesPage() {
         <p className="text-sm text-slate-500">Mode lihat saja — hubungi Admin untuk menambah/mengubah data pegawai.</p>
       )}
 
-      <div className="card overflow-x-auto p-0">
+      <div className="card max-h-[75vh] overflow-auto p-0">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500">
+          <thead className="sticky top-0 z-10 bg-slate-50 text-left text-slate-500 shadow-sm">
             <tr>
               <th className="px-4 py-3">Nama</th>
               <th className="px-4 py-3">NIP</th>

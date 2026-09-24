@@ -74,9 +74,9 @@ export default function AttendanceLogTable({
         </div>
       )}
 
-      <div className="card overflow-x-auto p-0">
+      <div className="card max-h-[75vh] overflow-auto p-0">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500">
+          <thead className="sticky top-0 z-10 bg-slate-50 text-left text-slate-500 shadow-sm">
             <tr>
               {!readOnly && (
                 <th className="w-10 px-4 py-3">

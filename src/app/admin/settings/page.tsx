@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { useGeolocation } from "@/lib/useGeolocation";
-import type { Office } from "@/types";
-import { MapPin, Save, CheckCircle2, Send, MessageCircle, FileSpreadsheet } from "lucide-react";
+import type { ApelLocation, Office } from "@/types";
+import { MapPin, Save, CheckCircle2, Send, MessageCircle, FileSpreadsheet, Flag, Plus, Trash2 } from "lucide-react";
 
 // Leaflet (peta Esri) butuh akses `window`, jadi wajib dimuat hanya di browser (ssr: false)
 const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
@@ -29,6 +29,24 @@ export default function SettingsPage() {
   const [testingReport, setTestingReport] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // ---------- Lokasi Apel Senin (Kantor Bupati) & Rabu (per kelompok OPD) ----------
+  const [apelLocations, setApelLocations] = useState<ApelLocation[]>([]);
+  const [apelError, setApelError] = useState<string | null>(null);
+  const [newApel, setNewApel] = useState({
+    name: "",
+    weekday: 1 as 1 | 3,
+    group_name: "",
+    latitude: "",
+    longitude: "",
+    radius_meters: 150,
+  });
+  const apelGeo = useGeolocation();
+
+  async function loadApelLocations() {
+    const { data } = await supabase.from("apel_locations").select("*").order("weekday").order("name");
+    setApelLocations((data ?? []) as ApelLocation[]);
+  }
+
   useEffect(() => {
     async function load() {
       const { data } = await supabase.from("offices").select("*").limit(1).single();
@@ -36,7 +54,55 @@ export default function SettingsPage() {
       setLoading(false);
     }
     load();
+    loadApelLocations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
+
+  useEffect(() => {
+    if (apelGeo.position) {
+      setNewApel((n) => ({
+        ...n,
+        latitude: String(apelGeo.position!.latitude),
+        longitude: String(apelGeo.position!.longitude),
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apelGeo.position]);
+
+  async function handleAddApelLocation() {
+    setApelError(null);
+    const lat = parseFloat(newApel.latitude);
+    const lng = parseFloat(newApel.longitude);
+    if (!newApel.name.trim() || Number.isNaN(lat) || Number.isNaN(lng)) {
+      setApelError("Nama lokasi dan koordinat (latitude/longitude) wajib diisi.");
+      return;
+    }
+    const { error } = await supabase.from("apel_locations").insert({
+      name: newApel.name.trim(),
+      weekday: newApel.weekday,
+      group_name: newApel.weekday === 3 ? newApel.group_name.trim() || null : null,
+      latitude: lat,
+      longitude: lng,
+      radius_meters: newApel.radius_meters,
+      is_active: true,
+    });
+    if (error) {
+      setApelError("Gagal menambah lokasi: " + error.message);
+      return;
+    }
+    setNewApel({ name: "", weekday: 1, group_name: "", latitude: "", longitude: "", radius_meters: 150 });
+    loadApelLocations();
+  }
+
+  async function updateApelLocation(id: string, fields: Partial<ApelLocation>) {
+    await supabase.from("apel_locations").update(fields).eq("id", id);
+    loadApelLocations();
+  }
+
+  async function deleteApelLocation(id: string) {
+    await supabase.from("apel_locations").delete().eq("id", id);
+    loadApelLocations();
+  }
 
   function update<K extends keyof Office>(key: K, value: Office[K]) {
     setOffice((o) => (o ? { ...o, [key]: value } : o));
@@ -240,6 +306,148 @@ export default function SettingsPage() {
           <Save size={18} />
           {saving ? "Menyimpan..." : "Simpan Pengaturan"}
         </button>
+      </div>
+
+      {/* ---------- Lokasi Apel Senin (Kantor Bupati) & Rabu (per kelompok OPD) ---------- */}
+      <div id="lokasi-apel" className="card scroll-mt-24 space-y-4">
+        <div className="flex items-center gap-2">
+          <Flag className="text-brand-600" size={20} />
+          <h2 className="font-semibold text-slate-800">Lokasi Apel Pagi (Senin &amp; Rabu)</h2>
+        </div>
+        <p className="text-sm text-slate-500">
+          Setiap Senin, apel pagi dilaksanakan di Kantor Bupati — berlaku untuk semua pegawai.
+          Setiap Rabu, apel dilaksanakan per kelompok perangkat daerah (OPD) — isi &quot;Kelompok
+          OPD&quot; agar hanya berlaku untuk pegawai dengan kelompok apel yang sama (diatur di menu
+          Kelola Pegawai). Pegawai boleh absen masuk dari lokasi ini pada hari yang sesuai, selain
+          di kantor.
+        </p>
+
+        {apelLocations.length > 0 && (
+          <div className="space-y-3 border-t border-slate-100 pt-4">
+            {apelLocations.map((loc) => (
+              <div key={loc.id} className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-6 sm:items-center">
+                <span className="text-xs font-semibold uppercase text-slate-400">
+                  {loc.weekday === 1 ? "Senin" : "Rabu"}
+                </span>
+                <input
+                  className="input sm:col-span-2"
+                  defaultValue={loc.name}
+                  onBlur={(e) => e.target.value !== loc.name && updateApelLocation(loc.id, { name: e.target.value })}
+                />
+                <input
+                  className="input"
+                  placeholder={loc.weekday === 3 ? "Kelompok OPD" : "(semua pegawai)"}
+                  disabled={loc.weekday === 1}
+                  defaultValue={loc.group_name ?? ""}
+                  onBlur={(e) =>
+                    e.target.value !== (loc.group_name ?? "") &&
+                    updateApelLocation(loc.id, { group_name: e.target.value.trim() || null })
+                  }
+                />
+                <input
+                  type="number"
+                  className="input"
+                  title="Radius (meter)"
+                  defaultValue={loc.radius_meters}
+                  onBlur={(e) =>
+                    Number(e.target.value) !== loc.radius_meters &&
+                    updateApelLocation(loc.id, { radius_meters: parseInt(e.target.value, 10) })
+                  }
+                />
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={loc.is_active}
+                      onChange={(e) => updateApelLocation(loc.id, { is_active: e.target.checked })}
+                    />
+                    Aktif
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => deleteApelLocation(loc.id)}
+                    className="ml-auto text-red-500 hover:text-red-700"
+                    title="Hapus lokasi"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-6 sm:items-end">
+          <div className="sm:col-span-2">
+            <label className="label">Nama Lokasi</label>
+            <input
+              className="input"
+              value={newApel.name}
+              onChange={(e) => setNewApel((n) => ({ ...n, name: e.target.value }))}
+              placeholder="mis. Kantor Bupati Sumba Barat"
+            />
+          </div>
+          <div>
+            <label className="label">Hari</label>
+            <select
+              className="input"
+              value={newApel.weekday}
+              onChange={(e) => setNewApel((n) => ({ ...n, weekday: Number(e.target.value) as 1 | 3 }))}
+            >
+              <option value={1}>Senin</option>
+              <option value={3}>Rabu</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Kelompok OPD</label>
+            <input
+              className="input"
+              disabled={newApel.weekday === 1}
+              value={newApel.group_name}
+              onChange={(e) => setNewApel((n) => ({ ...n, group_name: e.target.value }))}
+              placeholder={newApel.weekday === 1 ? "semua pegawai" : "mis. Inspektorat"}
+            />
+          </div>
+          <div>
+            <label className="label">Radius (m)</label>
+            <input
+              type="number"
+              className="input"
+              value={newApel.radius_meters}
+              onChange={(e) => setNewApel((n) => ({ ...n, radius_meters: parseInt(e.target.value, 10) || 0 }))}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Latitude</label>
+            <input
+              type="number"
+              step="0.000001"
+              className="input"
+              value={newApel.latitude}
+              onChange={(e) => setNewApel((n) => ({ ...n, latitude: e.target.value }))}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Longitude</label>
+            <input
+              type="number"
+              step="0.000001"
+              className="input"
+              value={newApel.longitude}
+              onChange={(e) => setNewApel((n) => ({ ...n, longitude: e.target.value }))}
+            />
+          </div>
+          <button type="button" onClick={() => apelGeo.request()} className="btn-secondary">
+            <MapPin size={16} />
+            {apelGeo.loading ? "Mendapatkan lokasi..." : "Gunakan Lokasi Saat Ini"}
+          </button>
+          <button type="button" onClick={handleAddApelLocation} className="btn-primary sm:col-span-2">
+            <Plus size={16} />
+            Tambah Lokasi Apel
+          </button>
+        </div>
+        {apelGeo.error && <p className="text-sm text-red-600">{apelGeo.error}</p>}
+        {apelError && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{apelError}</p>}
       </div>
 
       {/* ---------- Notifikasi Keterlambatan: WhatsApp ---------- */}

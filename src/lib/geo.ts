@@ -68,6 +68,21 @@ export function isFridayWita(date: Date): boolean {
   return weekday === "Fri";
 }
 
+/**
+ * Nomor hari dalam sepekan menurut WITA (Asia/Makassar), format ISO:
+ * 1 = Senin, 2 = Selasa, 3 = Rabu, 4 = Kamis, 5 = Jumat, 6 = Sabtu, 7 = Minggu.
+ * Dipakai server & klien agar penentuan "hari ini" selalu memakai jam server (WITA),
+ * bukan jam/zona waktu perangkat pegawai — konsisten dengan aturan apel Senin/Rabu.
+ */
+export function witaIsoWeekday(date: Date): number {
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Makassar",
+    weekday: "short",
+  }).format(date);
+  const map: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
+  return map[weekday] ?? 0;
+}
+
 /** Format durasi menit menjadi "Xh Ym" (mis. 8h 5m). Mengembalikan "-" bila 0/negatif. */
 export function formatDurationMinutes(totalMinutes: number): string {
   if (!totalMinutes || totalMinutes <= 0) return "-";

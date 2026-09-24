@@ -148,6 +148,22 @@ export default function EmployeeDetailPage() {
               <option value="admin">Admin</option>
             </select>
           </div>
+          <div>
+            <label className="label">Kelompok Apel Rabu (OPD)</label>
+            <input
+              className="input"
+              defaultValue={employee.apel_group ?? ""}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v !== (employee.apel_group ?? "")) patch({ apel_group: v || null });
+              }}
+              placeholder="mis. Inspektorat, Sekretariat Daerah, dst."
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Menentukan lokasi apel Rabu mana yang berlaku bagi pegawai ini (dikelola di Pengaturan
+              &gt; Lokasi Apel). Apel Senin berlaku untuk semua pegawai, tidak perlu diisi di sini.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center justify-between border-t border-slate-100 pt-4">

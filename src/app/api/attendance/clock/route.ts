@@ -7,9 +7,10 @@ import {
   isFridayWita,
   isLateClockIn,
   witaDateKey,
+  witaIsoWeekday,
 } from "@/lib/geo";
 import { notifyLateAttendance } from "@/lib/notifications/notify";
-import type { Office, WorkMode } from "@/types";
+import type { ApelLocation, Office, WorkMode } from "@/types";
 
 export async function POST(request: NextRequest) {
   const supabase = createClient();
@@ -27,6 +28,7 @@ export async function POST(request: NextRequest) {
   const descriptorRaw = formData.get("descriptor") as string;
   const selfieFile = formData.get("selfie") as File | null;
   const requestedMode: WorkMode = formData.get("work_mode") === "wfh" ? "wfh" : "wfo";
+  const requestedApelLocationId = (formData.get("apel_location_id") as string | null) || null;
 
   if (
     !["in", "out"].includes(type) ||
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest) {
   // 1. Ambil profil pegawai + descriptor wajah terdaftar
   const { data: employee, error: employeeError } = await supabase
     .from("employees")
-    .select("id, full_name, nip, position, phone, face_descriptor, is_active")
+    .select("id, full_name, nip, position, phone, face_descriptor, is_active, apel_group")
     .eq("id", userId)
     .single();
 
@@ -106,7 +108,41 @@ export async function POST(request: NextRequest) {
   // 3b. Validasi geofencing (dihitung ulang di server, tidak percaya klien).
   //     Jarak tetap dicatat untuk WFH, tetapi radius kantor hanya diwajibkan untuk WFO.
   const distance = distanceInMeters(latitude, longitude, office.latitude, office.longitude);
-  const withinGeofence = distance <= office.radius_meters;
+  const withinOfficeGeofence = distance <= office.radius_meters;
+
+  // 3c. Lokasi apel pagi Senin (Kantor Bupati, semua pegawai) & Rabu (per kelompok OPD).
+  //     Absen masuk pada hari tsb boleh dilakukan dari lokasi apel, bukan hanya kantor.
+  //     Dihitung ulang di server: kandidat lokasi ditentukan dari hari server (WITA) +
+  //     kelompok apel pegawai, klien hanya mengirim ID lokasi mana yang ia hadiri.
+  const weekday = witaIsoWeekday(serverTime);
+  let apelLocation: ApelLocation | null = null;
+  let apelDistance: number | null = null;
+  let withinApelGeofence = false;
+
+  if (type === "in" && (weekday === 1 || weekday === 3)) {
+    const { data: apelRows } = await supabase
+      .from("apel_locations")
+      .select("*")
+      .eq("weekday", weekday)
+      .eq("is_active", true);
+
+    const candidates = ((apelRows ?? []) as ApelLocation[]).filter(
+      (loc) => loc.group_name === null || loc.group_name === employee.apel_group
+    );
+
+    if (candidates.length === 1) {
+      apelLocation = candidates[0];
+    } else if (candidates.length > 1 && requestedApelLocationId) {
+      apelLocation = candidates.find((c) => c.id === requestedApelLocationId) ?? null;
+    }
+
+    if (apelLocation) {
+      apelDistance = distanceInMeters(latitude, longitude, apelLocation.latitude, apelLocation.longitude);
+      withinApelGeofence = apelDistance <= apelLocation.radius_meters;
+    }
+  }
+
+  const withinGeofence = withinOfficeGeofence || withinApelGeofence;
 
   // 4. Validasi wajah (dihitung ulang di server)
   const registeredDescriptor = employee.face_descriptor as number[];
@@ -116,9 +152,16 @@ export async function POST(request: NextRequest) {
   let status: "valid" | "rejected" = "valid";
   let rejectReason: string | null = null;
 
-  if (workMode === "wfo" && !withinGeofence) {
+  // Radius kantor HANYA diwajibkan untuk absen MASUK (mode WFO). Absen PULANG tidak pernah
+  // ditolak karena lokasi — pegawai yang audit/tugas lapangan hingga lewat jam kantor tetap
+  // bisa absen pulang; titik koordinat sebenarnya tetap direkam untuk jejak audit.
+  if (type === "in" && workMode === "wfo" && !withinGeofence) {
     status = "rejected";
-    rejectReason = `Lokasi di luar radius kantor (jarak ${Math.round(distance)}m, maksimal ${office.radius_meters}m).`;
+    rejectReason = apelLocation
+      ? `Lokasi di luar radius kantor (${Math.round(distance)}m) maupun lokasi apel "${apelLocation.name}" (${Math.round(
+          apelDistance ?? 0
+        )}m, maksimal ${apelLocation.radius_meters}m).`
+      : `Lokasi di luar radius kantor (jarak ${Math.round(distance)}m, maksimal ${office.radius_meters}m).`;
   } else if (!faceMatch) {
     status = "rejected";
     rejectReason = "Wajah tidak sesuai dengan data terdaftar.";
@@ -156,6 +199,8 @@ export async function POST(request: NextRequest) {
       reject_reason: rejectReason,
       is_late: isLate,
       work_mode: workMode,
+      apel_location_id: apelLocation?.id ?? null,
+      location_label: apelLocation?.name ?? null,
     })
     .select()
     .single();
@@ -177,5 +222,6 @@ export async function POST(request: NextRequest) {
     distance: Math.round(distance),
     isLate,
     workMode,
+    apelLocationName: apelLocation?.name ?? null,
   });
 }

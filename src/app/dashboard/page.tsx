@@ -6,8 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useGeolocation } from "@/lib/useGeolocation";
 import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
 import ServerClock from "@/components/ServerClock";
-import { distanceInMeters, formatWita, isFridayWita } from "@/lib/geo";
-import type { AttendanceRecord, Employee, LeaveRequest, Office, WorkMode } from "@/types";
+import { distanceInMeters, formatWita, isFridayWita, witaIsoWeekday } from "@/lib/geo";
+import type { ApelLocation, AttendanceRecord, Employee, LeaveRequest, Office, WorkMode } from "@/types";
 import { LEAVE_TYPE_LABEL } from "@/types";
 import { CheckCircle2, MapPin, XCircle, LogIn, LogOut, CalendarClock, ScanFace, Building2, Home } from "lucide-react";
 
@@ -23,6 +23,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [isFriday, setIsFriday] = useState(false); // berdasarkan waktu SERVER (WITA)
   const [chosenMode, setChosenMode] = useState<WorkMode | null>(null); // pilihan WFO/WFH utk absen masuk
+  const [apelCandidates, setApelCandidates] = useState<ApelLocation[]>([]); // lokasi apel Senin/Rabu yang berlaku hari ini
+  const [chosenApelId, setChosenApelId] = useState<string | null>(null);
 
   const [step, setStep] = useState<Step>("idle");
   const [pendingType, setPendingType] = useState<"in" | "out" | null>(null);
@@ -38,15 +40,19 @@ export default function DashboardPage() {
 
       const todayStr = new Date().toISOString().slice(0, 10);
 
-      // Hari Jumat ditentukan dari jam server, bukan jam HP pegawai
+      // Hari Senin/Rabu/Jumat ditentukan dari jam server, bukan jam HP pegawai
+      let weekday = 0;
       try {
         const st = await fetch("/api/server-time").then((r) => r.json());
-        setIsFriday(isFridayWita(new Date(st.serverTime)));
+        const serverNow = new Date(st.serverTime);
+        setIsFriday(isFridayWita(serverNow));
+        weekday = witaIsoWeekday(serverNow);
       } catch {
         setIsFriday(isFridayWita(new Date()));
+        weekday = witaIsoWeekday(new Date());
       }
 
-      const [{ data: emp }, { data: off }, { data: att }, { data: leave }] = await Promise.all([
+      const [{ data: emp }, { data: off }, { data: att }, { data: leave }, apelRes] = await Promise.all([
         supabase.from("employees").select("*").eq("id", userData.user.id).single(),
         supabase.from("offices").select("*").limit(1).single(),
         supabase
@@ -64,12 +70,25 @@ export default function DashboardPage() {
           .gte("end_date", todayStr)
           .limit(1)
           .maybeSingle(),
+        weekday === 1 || weekday === 3
+          ? supabase.from("apel_locations").select("*").eq("weekday", weekday).eq("is_active", true)
+          : Promise.resolve({ data: [] as ApelLocation[] }),
       ]);
 
-      setEmployee(emp as Employee);
+      const employeeData = emp as Employee;
+      setEmployee(employeeData);
       setOffice(off as Office);
       setTodayRecords((att ?? []) as AttendanceRecord[]);
       setTodayLeave((leave as LeaveRequest) ?? null);
+
+      // Hanya lokasi apel yang berlaku utk semua pegawai (group_name null, khusus Senin) atau
+      // yang sesuai kelompok OPD pegawai ybs (khusus Rabu) yang ditampilkan sbg pilihan.
+      const apelRows = ((apelRes?.data ?? []) as ApelLocation[]).filter(
+        (loc) => loc.group_name === null || loc.group_name === employeeData?.apel_group
+      );
+      setApelCandidates(apelRows);
+      if (apelRows.length === 1) setChosenApelId(apelRows[0].id);
+
       setLoading(false);
     }
     load();
@@ -85,6 +104,10 @@ export default function DashboardPage() {
   const activeMode: WorkMode = validIn ? (validIn.work_mode === "wfh" ? "wfh" : "wfo") : (chosenMode ?? "wfo");
   const isWfh = hybridToday && activeMode === "wfh";
   const needModeChoice = hybridToday && !validIn && !chosenMode;
+
+  // Pilihan lokasi apel (Senin/Rabu) hanya relevan sebelum absen MASUK & bila ada >1 kandidat lokasi
+  const needApelChoice = !validIn && apelCandidates.length > 1 && !chosenApelId;
+  const chosenApelLocation = apelCandidates.find((a) => a.id === chosenApelId) ?? null;
 
   function startClock(type: "in" | "out", mode?: WorkMode) {
     if (mode) setChosenMode(mode);
@@ -107,6 +130,7 @@ export default function DashboardPage() {
     formData.append("descriptor", JSON.stringify(capture.descriptor));
     formData.append("selfie", capture.imageBlob, "selfie.jpg");
     formData.append("work_mode", isWfh ? "wfh" : "wfo");
+    if (pendingType === "in" && chosenApelId) formData.append("apel_location_id", chosenApelId);
 
     try {
       const res = await fetch("/api/attendance/clock", { method: "POST", body: formData });
@@ -148,7 +172,21 @@ export default function DashboardPage() {
     geo.position && office
       ? distanceInMeters(geo.position.latitude, geo.position.longitude, office.latitude, office.longitude)
       : null;
-  const withinGeofence = distance !== null && office ? distance <= office.radius_meters : null;
+  const withinOfficeGeofence = distance !== null && office ? distance <= office.radius_meters : null;
+
+  const apelDistance =
+    geo.position && chosenApelLocation
+      ? distanceInMeters(
+          geo.position.latitude,
+          geo.position.longitude,
+          chosenApelLocation.latitude,
+          chosenApelLocation.longitude
+        )
+      : null;
+  const withinApelGeofence =
+    apelDistance !== null && chosenApelLocation ? apelDistance <= chosenApelLocation.radius_meters : null;
+
+  const withinGeofence = withinOfficeGeofence || withinApelGeofence;
 
   return (
     <div className="space-y-6">
@@ -210,7 +248,31 @@ export default function DashboardPage() {
           Absensi hari ini sudah lengkap. Sampai jumpa besok! 👋
         </div>
       ) : step === "idle" ? (
-        needModeChoice ? (
+        needApelChoice ? (
+          <div className="card space-y-4 text-center">
+            <div>
+              <p className="font-semibold text-slate-800">Hari ini ada apel pagi — pilih lokasi Anda</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Absen masuk boleh dilakukan dari lokasi apel di bawah ini, selain di kantor.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {apelCandidates.map((loc) => (
+                <button
+                  key={loc.id}
+                  onClick={() => setChosenApelId(loc.id)}
+                  className="flex flex-col items-center gap-1 rounded-xl border border-brand-100 bg-white/60 px-4 py-4 text-brand-900 transition hover:bg-white"
+                >
+                  <MapPin size={26} />
+                  <span className="font-semibold">{loc.name}</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setChosenApelId("__kantor__")} className="btn-secondary mx-auto">
+              Saya absen di Kantor seperti biasa
+            </button>
+          </div>
+        ) : needModeChoice ? (
           <div className="card space-y-4 text-center">
             <div>
               <p className="font-semibold text-slate-800">Hari ini Jumat — pilih mode kerja Anda</p>
@@ -271,14 +333,34 @@ export default function DashboardPage() {
       ) : (
         <div className="card space-y-4">
           <div className="flex items-center gap-2 text-sm">
-            <MapPin size={16} className={isWfh || withinGeofence ? "text-emerald-500" : "text-amber-500"} />
+            <MapPin
+              size={16}
+              className={
+                pendingType === "out" || isWfh || withinGeofence ? "text-emerald-500" : "text-amber-500"
+              }
+            />
             {geo.loading && <span className="text-slate-500">Mendapatkan lokasi GPS...</span>}
             {geo.error && <span className="text-red-600">{geo.error}</span>}
-            {isWfh ? (
+            {pendingType === "out" ? (
+              // Absen pulang tidak mensyaratkan radius kantor — lokasi tetap direkam sbg jejak audit
+              distance !== null && (
+                <span className="text-slate-600">
+                  Lokasi absen pulang tercatat: {Math.round(distance)}m dari kantor. Boleh dilakukan dari
+                  mana saja (mis. sedang audit/tugas lapangan).
+                </span>
+              )
+            ) : isWfh ? (
               !geo.loading &&
               !geo.error && (
                 <span className="text-emerald-700">
                   Mode WFH — Anda boleh absen dari rumah, tidak perlu berada di radius kantor.
+                </span>
+              )
+            ) : chosenApelLocation ? (
+              apelDistance !== null && (
+                <span className={withinGeofence ? "text-emerald-700" : "text-amber-600"}>
+                  Jarak ke lokasi apel &quot;{chosenApelLocation.name}&quot;: {Math.round(apelDistance)}m{" "}
+                  {withinApelGeofence ? "(dalam radius)" : `(di luar radius, atau ${Math.round(distance ?? 0)}m dari kantor)`}
                 </span>
               )
             ) : (

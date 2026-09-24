@@ -15,6 +15,7 @@ export interface Employee {
   pending_face_descriptor: number[] | null;
   pending_photo_url: string | null;
   face_rejection_reason: string | null;
+  apel_group: string | null; // kelompok perangkat daerah/OPD utk menentukan lokasi apel Rabu
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -73,8 +74,23 @@ export interface AttendanceRecord {
   reject_reason: string | null;
   is_late: boolean;
   work_mode: WorkMode; // 'wfh' hanya mungkin pada hari Jumat (kebijakan hybrid)
+  apel_location_id: string | null; // lokasi apel Senin/Rabu yang dipakai (jika ada)
+  location_label: string | null; // nama lokasi apel, utk jejak audit di riwayat/laporan
   created_at: string;
   employees?: Pick<Employee, "full_name" | "nip" | "position">;
+}
+
+// Lokasi apel pagi Senin (Kantor Bupati, berlaku semua pegawai) & Rabu (per kelompok OPD)
+export interface ApelLocation {
+  id: string;
+  name: string;
+  weekday: 1 | 3; // 1 = Senin, 3 = Rabu
+  group_name: string | null; // null = berlaku utk semua pegawai (khusus Senin)
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+  is_active: boolean;
+  created_at: string;
 }
 
 export type LeaveType = "cuti" | "izin" | "sakit";

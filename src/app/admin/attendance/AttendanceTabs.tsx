@@ -9,7 +9,7 @@ export default function AttendanceTabs({
   readOnly?: boolean;
 }) {
   const tabs = [
-    { key: "grid", label: "Timesheets (Mingguan)", href: "/admin/attendance" },
+    { key: "grid", label: "Timesheets", href: "/admin/attendance" },
     { key: "log", label: readOnly ? "Log Absensi" : "Log Absensi (Edit/Hapus)", href: "/admin/attendance/log" },
     ...(readOnly ? [] : [{ key: "audit" as const, label: "Riwayat Perubahan", href: "/admin/attendance/audit" }]),
   ] as const;

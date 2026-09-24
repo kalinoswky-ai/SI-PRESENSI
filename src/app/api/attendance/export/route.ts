@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/fetchAll";
 import { buildAttendanceWorkbook, EMPLOYEE_EXPORT_COLUMNS, type EmployeeExportRow } from "@/lib/reports/attendanceWorkbook";
+import { buildAttendanceGrid, rangeDays } from "@/lib/reports/attendanceGrid";
+import type { AttendanceRecord } from "@/types";
 
 // Selalu ambil data terbaru dari Supabase saat export diklik — jangan di-cache Next.js.
 export const dynamic = "force-dynamic";
@@ -29,6 +31,11 @@ export async function GET(request: NextRequest) {
   const from = searchParams.get("from") ?? new Date().toISOString().slice(0, 10);
   const to = searchParams.get("to") ?? new Date().toISOString().slice(0, 10);
   const employeeId = searchParams.get("employee_id");
+  // view menentukan sheet rekap grid pertama (Rekap Harian/Mingguan/Bulanan) agar Excel
+  // yang diunduh mencerminkan tab periode yang sedang dibuka admin di halaman Timesheets.
+  const view = searchParams.get("view"); // "day" | "week" | "month" | null
+  const PERIOD_LABEL: Record<string, string> = { day: "Harian", week: "Mingguan", month: "Bulanan" };
+  const periodLabel = view ? PERIOD_LABEL[view] : undefined;
 
   // Ambil semua halaman — query tunggal Supabase dibatasi 1000 baris sehingga Excel bisa terpotong.
   const { data: records, error } = await fetchAllRows((a, b) => {
@@ -61,9 +68,31 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: empError }, { status: 500 });
   }
 
-  const workbook = await buildAttendanceWorkbook(records, employees);
+  // Sheet rekap grid pertama (Pegawai x Hari) hanya dibuat bila diminta dari tab Timesheets
+  // (view diisi) dan bukan export per satu pegawai (grid dirancang untuk seluruh pegawai aktif).
+  let gridInput;
+  if (view && PERIOD_LABEL[view] && !employeeId) {
+    const { data: activeEmployees } = await supabase
+      .from("employees")
+      .select("id, full_name, nip")
+      .eq("is_active", true)
+      .order("full_name");
+    const gridRows = (records ?? []).filter((r) => r.status === "valid") as Pick<
+      AttendanceRecord,
+      "employee_id" | "type" | "server_time" | "is_late"
+    >[];
+    gridInput = {
+      employees: activeEmployees ?? [],
+      days: rangeDays(from, to),
+      grid: buildAttendanceGrid(gridRows),
+      sheetName: `Rekap ${periodLabel}`,
+    };
+  }
+
+  const workbook = await buildAttendanceWorkbook(records, employees, gridInput);
   const buffer = await workbook.xlsx.writeBuffer();
-  const filename = `Rekap-Absensi-Inspektorat-Sumba-Barat_${from}_sd_${to}.xlsx`;
+  const periodSuffix = periodLabel ? `_${periodLabel}` : "";
+  const filename = `Rekap-Absensi-Inspektorat-Sumba-Barat${periodSuffix}_${from}_sd_${to}.xlsx`;
 
   return new NextResponse(buffer, {
     headers: {

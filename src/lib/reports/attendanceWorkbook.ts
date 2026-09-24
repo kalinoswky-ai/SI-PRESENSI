@@ -1,6 +1,7 @@
 import "server-only";
 import ExcelJS from "exceljs";
 import { formatDurationMinutes, mapsUrl, witaDateKey } from "@/lib/geo";
+import { toDDMM, weekdayShort, type AttendanceGrid } from "@/lib/reports/attendanceGrid";
 import { ROLE_LABEL } from "@/types";
 import type { AttendanceRecord, Employee } from "@/types";
 
@@ -126,6 +127,55 @@ function addDetailSheet(workbook: ExcelJS.Workbook, records: AttendanceRecord[],
   styleHeader(sheet);
 }
 
+/**
+ * Sheet rekap grid (Pegawai x Hari) — mencerminkan tampilan Timesheets di web (Harian/Mingguan/Bulanan).
+ * Baris header (tanggal) & kolom pertama (nama pegawai) di-freeze (frozen panes) agar tetap
+ * terlihat saat sheet di-scroll di Excel, sama seperti tabel di halaman web.
+ */
+function addGridSheet(
+  workbook: ExcelJS.Workbook,
+  employees: { id: string; full_name: string; nip: string | null }[],
+  days: string[],
+  grid: AttendanceGrid,
+  sheetName: string
+) {
+  const sheet = workbook.addWorksheet(sheetName);
+
+  sheet.columns = [
+    { header: "NIP", key: "nip", width: 22 },
+    { header: "Nama Pegawai", key: "nama", width: 30 },
+    ...days.map((d) => ({ header: `${weekdayShort(d)} ${toDDMM(d)}`, key: d, width: 11 })),
+    { header: "Total", key: "total", width: 13 },
+  ];
+  sheet.getColumn("nip").numFmt = "@";
+
+  employees.forEach((e) => {
+    const dayMap = grid.get(e.id);
+    let total = 0;
+    const row: Record<string, string> = { nip: e.nip ?? "-", nama: e.full_name };
+    for (const d of days) {
+      const cell = dayMap?.get(d);
+      if (cell) total += cell.minutes;
+      row[d] = cell ? (cell.minutes > 0 ? formatDurationMinutes(cell.minutes) : "Masuk") + (cell.late ? " (Terlambat)" : "") : "-";
+    }
+    row.total = formatDurationMinutes(total);
+    sheet.addRow(row);
+  });
+
+  if (employees.length === 0) {
+    sheet.addRow({ nip: "-", nama: "Belum ada pegawai aktif." });
+  }
+
+  const header = sheet.getRow(1);
+  header.font = { bold: true };
+  header.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+  header.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDBEAFE" } };
+  });
+  sheet.views = [{ state: "frozen", xSplit: 2, ySplit: 1 }];
+  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: sheet.columns.length } };
+}
+
 /** Sheet Resume: jam masuk + jam pulang digabung per pegawai per hari (WITA). */
 function addResumeSheet(workbook: ExcelJS.Workbook, records: AttendanceRecord[]) {
   const sheet = workbook.addWorksheet("Resume");
@@ -240,10 +290,23 @@ export function addEmployeeSheet(workbook: ExcelJS.Workbook, employees: Employee
   styleHeader(sheet);
 }
 
-export async function buildAttendanceWorkbook(records: AttendanceRecord[], employees?: EmployeeExportRow[]) {
+/** Info grid opsional (Pegawai x Hari) untuk sheet rekap pertama, mencerminkan tampilan Harian/Mingguan/Bulanan di web. */
+export type GridSheetInput = {
+  employees: { id: string; full_name: string; nip: string | null }[];
+  days: string[];
+  grid: AttendanceGrid;
+  sheetName: string;
+};
+
+export async function buildAttendanceWorkbook(
+  records: AttendanceRecord[],
+  employees?: EmployeeExportRow[],
+  gridInput?: GridSheetInput
+) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Sistem Absensi Digital - Inspektorat Sumba Barat";
 
+  if (gridInput) addGridSheet(workbook, gridInput.employees, gridInput.days, gridInput.grid, gridInput.sheetName);
   addDetailSheet(workbook, records, "in");
   addDetailSheet(workbook, records, "out");
   addResumeSheet(workbook, records);

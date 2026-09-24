@@ -78,6 +78,25 @@ tergantung pihak ketiga.
 - Rekap Reports, grid Timesheets, dan Export Excel kini mengambil seluruh data (sebelumnya
   terpotong di 1000 baris) dan memakai batas hari WITA.
 
+## Pembaruan: Import Pegawai via Excel & Wajib Ganti Password (khusus Admin)
+
+- **People → Tambah Pegawai** kini punya dua tab: *Input Manual* dan *Import Excel*
+  (tombol pintas *Import Excel* juga ada di halaman Data Pegawai).
+- Alur: **Unduh Template** → isi Excel → **Pilih File** (sistem langsung memeriksa & menampilkan
+  baris Siap/Bermasalah) → **Import**. Baris bermasalah dilewati & dijelaskan alasannya per baris.
+- Kolom template: `NAMA | NIP | JABATAN | ROLE | EMAIL | NO HP | PASSWORD`.
+  ROLE = `pegawai` / `pimpinan` / `admin`. NIP wajib untuk pegawai & pimpinan. NO HP otomatis
+  diseragamkan ke format `62…`. Maksimal 300 pegawai per file (.xlsx, ≤ 2 MB).
+- Pemeriksaan: email/NIP ganda (dalam file & terhadap data yang sudah ada), format email, role,
+  password minimal 6 karakter, dan NIP yang terpotong Excel (kolom NIP di template sudah berformat Teks).
+- **Wajib ganti password**: akun hasil import bertanda `must_change_password`. Saat login pertama,
+  pegawai diarahkan ke halaman *Ganti Password* dan belum bisa membuka Dashboard/Admin sampai
+  membuat password baru (min. 8 karakter, harus berbeda dari password awal). Password awal boleh sama
+  untuk semua pegawai.
+- Password awal tidak pernah ditampilkan kembali maupun ditulis ke *Riwayat Perubahan*; import
+  tercatat di audit log sebagai `employee.import`.
+- Jalankan `supabase/update-import-pegawai-excel.sql` sekali di SQL Editor **sebelum** memakai fitur ini.
+
 ## 1. Setup Supabase
 
 1. Buat project baru di [supabase.com](https://supabase.com) (gratis).

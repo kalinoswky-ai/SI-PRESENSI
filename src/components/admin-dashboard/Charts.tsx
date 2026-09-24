@@ -3,20 +3,24 @@ import type { StatusBreakdown, TrendDay } from "./types";
 export const STATUS_COLORS = {
   onTime: "#0d9488",
   late: "#f59e0b",
-  onLeave: "#2563eb",
-  notYet: "#cbd5e1",
+  cuti: "#2563eb",
+  izin: "#8b5cf6",
+  sakit: "#f43f5e",
+  tanpaBerita: "#94a3b8",
 } as const;
 
 /** Donut komposisi kehadiran hari ini. Angka juga ditulis di legenda (tidak bergantung warna). */
 export function AttendanceDonut({ data }: { data: StatusBreakdown }) {
   const r = 54;
   const c = 2 * Math.PI * r;
-  const total = data.onTime + data.late + data.onLeave + data.notYet;
+  const total = data.onTime + data.late + data.cuti + data.izin + data.sakit + data.tanpaBerita;
   const segments = [
     { key: "onTime", value: data.onTime, color: STATUS_COLORS.onTime },
     { key: "late", value: data.late, color: STATUS_COLORS.late },
-    { key: "onLeave", value: data.onLeave, color: STATUS_COLORS.onLeave },
-    { key: "notYet", value: data.notYet, color: STATUS_COLORS.notYet },
+    { key: "cuti", value: data.cuti, color: STATUS_COLORS.cuti },
+    { key: "izin", value: data.izin, color: STATUS_COLORS.izin },
+    { key: "sakit", value: data.sakit, color: STATUS_COLORS.sakit },
+    { key: "tanpaBerita", value: data.tanpaBerita, color: STATUS_COLORS.tanpaBerita },
   ];
 
   let offset = 0;

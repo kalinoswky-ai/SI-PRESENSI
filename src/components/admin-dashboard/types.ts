@@ -5,9 +5,12 @@ export interface StatusBreakdown {
   eligible: number;
   onTime: number;
   late: number;
-  /** Cuti/izin/sakit yang sudah disetujui dan berlaku hari ini (dan belum absen). */
-  onLeave: number;
-  notYet: number;
+  /** Cuti / izin / sakit yang sudah disetujui dan berlaku hari ini (dan belum absen), dipisah per jenis. */
+  cuti: number;
+  izin: number;
+  sakit: number;
+  /** Tanpa berita: wajib absen, belum absen masuk, dan tidak punya cuti/izin/sakit disetujui hari ini. */
+  tanpaBerita: number;
 }
 
 export interface TrendDay {

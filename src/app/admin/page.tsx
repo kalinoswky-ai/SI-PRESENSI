@@ -67,7 +67,7 @@ export default async function AdminOverviewPage() {
     // Cuti/izin/sakit yang sudah disetujui dan mencakup hari ini.
     supabase
       .from("leave_requests")
-      .select("employee_id")
+      .select("employee_id, type")
       .eq("status", "approved")
       .lte("start_date", todayKey)
       .gte("end_date", todayKey),
@@ -101,14 +101,26 @@ export default async function AdminOverviewPage() {
   // --- Komposisi kehadiran hari ini (per pegawai, bukan per baris absen) ---
   const presentIds = new Set(todayIn.map((r) => r.employee_id as string));
   const lateIds = new Set(todayLate.map((r) => r.employee_id as string));
-  const leaveOnlyIds = new Set(
-    (leaveToday ?? []).map((r) => r.employee_id as string).filter((id) => !presentIds.has(id))
-  );
+  // Cuti/izin/sakit disetujui hari ini, dipisah per jenis. Satu pegawai dihitung sekali
+  // (jenis pertama yang ditemukan) dan tidak dihitung bila sudah absen masuk.
+  const leaveByType: Record<"cuti" | "izin" | "sakit", Set<string>> = {
+    cuti: new Set<string>(),
+    izin: new Set<string>(),
+    sakit: new Set<string>(),
+  };
+  const leaveCounted = new Set<string>();
+  for (const r of leaveToday ?? []) {
+    const id = r.employee_id as string;
+    const type = r.type as LeaveType;
+    if (presentIds.has(id) || leaveCounted.has(id) || !(type in leaveByType)) continue;
+    leaveByType[type].add(id);
+    leaveCounted.add(id);
+  }
   const eligible = eligibleEmployees ?? 0;
   const late = lateIds.size;
   const onTime = presentIds.size - late;
-  const onLeave = leaveOnlyIds.size;
-  const notYet = Math.max(0, eligible - presentIds.size - onLeave);
+  const onLeave = leaveCounted.size;
+  const tanpaBerita = Math.max(0, eligible - presentIds.size - onLeave);
 
   // --- Tren 7 hari ---
   const perDay = new Map<string, { present: Set<string>; late: Set<string> }>(
@@ -195,7 +207,15 @@ export default async function AdminOverviewPage() {
     todayLateCount: todayLate.length,
     todayRejectedCount: todayRejected.length,
     pendingLeaveCount: pendingLeave ?? 0,
-    breakdown: { eligible, onTime, late, onLeave, notYet },
+    breakdown: {
+      eligible,
+      onTime,
+      late,
+      cuti: leaveByType.cuti.size,
+      izin: leaveByType.izin.size,
+      sakit: leaveByType.sakit.size,
+      tanpaBerita,
+    },
     trend,
     activities,
   };

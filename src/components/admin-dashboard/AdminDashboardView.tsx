@@ -57,8 +57,10 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
   const legend = [
     { label: "Tepat waktu", value: b.onTime, color: STATUS_COLORS.onTime },
     { label: "Terlambat", value: b.late, color: STATUS_COLORS.late },
-    { label: "Cuti/izin/sakit", value: b.onLeave, color: STATUS_COLORS.onLeave },
-    { label: "Belum absen", value: b.notYet, color: STATUS_COLORS.notYet },
+    { label: "Cuti", value: b.cuti, color: STATUS_COLORS.cuti },
+    { label: "Izin", value: b.izin, color: STATUS_COLORS.izin },
+    { label: "Sakit", value: b.sakit, color: STATUS_COLORS.sakit },
+    { label: "Tanpa berita", value: b.tanpaBerita, color: STATUS_COLORS.tanpaBerita },
   ];
 
   // Semua tujuan adalah route yang sudah ada; item khusus Admin tetap disembunyikan untuk Pimpinan.

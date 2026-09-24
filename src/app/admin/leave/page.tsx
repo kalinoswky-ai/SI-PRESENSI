@@ -2,6 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { LEAVE_TYPE_LABEL } from "@/types";
 import LeaveActions from "./LeaveActions";
 
+// PENTING: tanpa ini, Next.js bisa meng-cache hasil query Supabase di halaman ini,
+// sehingga pengajuan cuti/izin/sakit BARU dari pegawai tidak langsung muncul di sini
+// walaupun datanya sudah tersimpan di database (root cause bug "Time Off" tidak terbarui).
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function AdminLeavePage({
   searchParams,
 }: {

@@ -2,6 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { UserPlus, ScanFace } from "lucide-react";
 
+// Selalu render ulang & ambil data terbaru dari Supabase — jangan di-cache Next.js.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function EmployeesPage() {
   const supabase = createClient();
   const { data: employees } = await supabase

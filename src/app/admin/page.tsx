@@ -2,6 +2,13 @@ import { createClient } from "@/lib/supabase/server";
 import { Users, CheckCircle2, AlertTriangle, Clock3 } from "lucide-react";
 import Link from "next/link";
 
+// PENTING: halaman admin ini membaca data langsung dari Supabase pada setiap request.
+// Tanpa baris ini, Next.js App Router bisa meng-cache hasil fetch server-side, sehingga
+// data baru (mis. pengajuan cuti/izin/sakit pegawai) tidak langsung muncul di sisi Admin
+// walaupun sudah benar-benar tersimpan di database.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function AdminOverviewPage() {
   const supabase = createClient();
 

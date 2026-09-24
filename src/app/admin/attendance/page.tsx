@@ -5,6 +5,10 @@ import Link from "next/link";
 import AttendanceTabs from "./AttendanceTabs";
 import type { AttendanceRecord } from "@/types";
 
+// Selalu render ulang & ambil data terbaru dari Supabase — jangan di-cache Next.js.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const WEEKDAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 
 function mondayOf(dateStr: string): Date {

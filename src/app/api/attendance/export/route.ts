@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildAttendanceWorkbook } from "@/lib/reports/attendanceWorkbook";
 
+// Selalu ambil data terbaru dari Supabase saat export diklik — jangan di-cache Next.js.
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   const supabase = createClient();
   const { data: userData } = await supabase.auth.getUser();

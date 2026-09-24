@@ -2,6 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { formatWita } from "@/lib/geo";
 import { Download, Users, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 
+// Selalu render ulang & ambil data terbaru dari Supabase — jangan di-cache Next.js.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function firstOfMonthStr() {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);

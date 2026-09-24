@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 
 // Menghasilkan signed URL sementara (privat) untuk lampiran cuti/izin.
 // Hanya bisa diakses oleh: admin, atau pegawai pemilik pengajuan tersebut.
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   const supabase = createClient();
   const { data: userData } = await supabase.auth.getUser();

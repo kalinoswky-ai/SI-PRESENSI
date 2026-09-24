@@ -86,6 +86,15 @@ tergantung pihak ketiga.
 - Butuh alamat **https** (Vercel sudah https). Tidak ada service worker: aplikasi tetap membutuhkan internet.
 - Panduan untuk pegawai: bagikan halaman panduan pemasangan (Android & iPhone).
 
+## Pembaruan: Export Data Pegawai & Perbaikan Lokasi Apel
+
+- **Export Excel absensi kini punya sheet ke-4 "Data Pegawai"** — seluruh pegawai (aktif & nonaktif) sesuai data
+  terbaru di sistem: NIP, nama, jabatan, role, email, no HP, kelompok OPD, status akun, status wajah, tanggal
+  terdaftar & terakhir diperbarui. Tidak memuat password/data wajah. Laporan otomatis BKPSDM tidak menyertakan sheet ini.
+- Tombol **Export Data Pegawai** di Admin > Pegawai (`/api/employees/export`) — file khusus data pegawai.
+- **Perbaikan "Gagal menambah lokasi apel … 'day_of_month' … schema cache"**: jalankan sekali
+  `supabase/fix-apel-lokasi-lengkap.sql` di Supabase > SQL Editor (idempotent, sudah termasuk reload cache skema).
+
 ## Pembaruan: Status Kehadiran Dashboard & Export Excel 3 Sheet
 
 - **Dashboard Admin** — rincian *Status Kehadiran Hari Ini* kini: Tepat waktu · Terlambat · Cuti · Izin ·

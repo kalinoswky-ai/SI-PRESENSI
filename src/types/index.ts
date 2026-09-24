@@ -134,3 +134,21 @@ export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
   izin: "Izin",
   sakit: "Sakit",
 };
+
+// Pengajuan lembur pegawai. Status memakai LeaveStatus yang sama (pending/approved/rejected)
+// dan disetujui oleh penyetuju yang sama dengan cuti/izin (Inspektur).
+export interface OvertimeRequest {
+  id: string;
+  employee_id: string;
+  work_date: string; // "YYYY-MM-DD"
+  start_time: string; // "HH:MM:SS" (WITA)
+  end_time: string; // "HH:MM:SS" (WITA)
+  duration_minutes: number; // dihitung otomatis oleh database
+  description: string;
+  attachment_url: string | null;
+  status: LeaveStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  created_at: string;
+}

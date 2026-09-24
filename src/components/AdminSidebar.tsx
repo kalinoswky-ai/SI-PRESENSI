@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Clock,
   Briefcase,
+  Timer,
   BarChart3,
   Users,
   Settings,
@@ -25,6 +26,7 @@ const mainLinks = [
   { href: "/admin", label: "Dashboard", sublabel: "Ringkasan", icon: LayoutDashboard },
   { href: "/admin/attendance", label: "Timesheets", sublabel: "Absensi", icon: Clock },
   { href: "/admin/leave", label: "Time Off", sublabel: "Cuti / Izin", icon: Briefcase },
+  { href: "/admin/overtime", label: "Overtime", sublabel: "Lembur", icon: Timer },
   { href: "/admin/reports", label: "Reports", sublabel: "Laporan", icon: BarChart3 },
   { href: "/admin/employees", label: "People", sublabel: "Pegawai", icon: Users },
 ];
@@ -40,11 +42,13 @@ const settingsLinks = [
 export default function AdminSidebar({
   orgName,
   pendingLeave = 0,
+  pendingOvertime = 0,
   role = "admin",
   viewerLabel,
 }: {
   orgName: string;
   pendingLeave?: number;
+  pendingOvertime?: number;
   /** Role akun yang sedang login. 'pimpinan' = mode lihat statistik saja (read-only). */
   role?: EmployeeRole;
   /** Nama/jabatan pimpinan untuk ditampilkan, mis. "Inspektur Kab. Sumba Barat". */
@@ -122,6 +126,11 @@ export default function AdminSidebar({
                   {link.href === "/admin/leave" && pendingLeave > 0 && (
                     <span className="ml-auto rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white">
                       {pendingLeave}
+                    </span>
+                  )}
+                  {link.href === "/admin/overtime" && pendingOvertime > 0 && (
+                    <span className="ml-auto rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white">
+                      {pendingOvertime}
                     </span>
                   )}
                 </Link>
@@ -237,6 +246,11 @@ export default function AdminSidebar({
                 {link.href === "/admin/leave" && pendingLeave > 0 && (
                   <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
                     {pendingLeave}
+                  </span>
+                )}
+                {link.href === "/admin/overtime" && pendingOvertime > 0 && (
+                  <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                    {pendingOvertime}
                   </span>
                 )}
               </Link>

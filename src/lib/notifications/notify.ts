@@ -98,3 +98,45 @@ export async function notifyNewLeaveRequest(
     console.error("notifyNewLeaveRequest gagal (diabaikan, tidak memengaruhi pengajuan):", err);
   }
 }
+
+/**
+ * Kirim notifikasi ke admin/pengawas saat ada pengajuan LEMBUR baru dari pegawai.
+ * Best-effort: tidak pernah melempar error dan tidak menggagalkan pengajuan.
+ */
+export async function notifyNewOvertimeRequest(
+  employee: Pick<Employee, "full_name" | "nip" | "position">,
+  office: Office,
+  overtime: { work_date: string; start_time: string; end_time: string; description: string }
+) {
+  try {
+    const message =
+      `🕒 <b>Pengajuan Lembur Baru</b>\n` +
+      `Pegawai: ${employee.full_name} (NIP ${employee.nip ?? "-"})\n` +
+      `Jabatan: ${employee.position ?? "-"}\n` +
+      `Tanggal: ${overtime.work_date}\n` +
+      `Jam: ${overtime.start_time} - ${overtime.end_time} WITA\n` +
+      `Pekerjaan: ${overtime.description}\n` +
+      `Mohon diproses di menu Lembur.`;
+
+    const jobs: Promise<void>[] = [];
+
+    if (office.wa_notify_enabled && office.wa_api_token) {
+      const numbers = (office.wa_admin_numbers ?? "")
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean);
+      if (numbers.length > 0) {
+        jobs.push(sendWhatsAppToMany(office, numbers, message.replace(/<\/?b>/g, "")));
+      }
+    }
+
+    if (office.telegram_notify_enabled && office.telegram_bot_token && office.telegram_chat_id) {
+      jobs.push(sendTelegramMessage(office.telegram_bot_token, office.telegram_chat_id, message));
+    }
+
+    await Promise.allSettled(jobs);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("notifyNewOvertimeRequest gagal (diabaikan, tidak memengaruhi pengajuan):", err);
+  }
+}

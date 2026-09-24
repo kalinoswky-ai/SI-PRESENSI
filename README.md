@@ -43,6 +43,16 @@ tergantung pihak ketiga.
 - Vercel Cron — penjadwal laporan otomatis harian/mingguan/bulanan
 - Deploy: GitHub → Vercel (CI/CD otomatis setiap push)
 
+## Pembaruan: Time Off & Absen Pulang
+
+- **Time Off (Admin)** — pengajuan cuti/izin/sakit pegawai kini selalu muncul di menu Time Off
+  (perbaikan query yang ambigu ke tabel `employees`), lengkap dengan jumlah per tab, badge
+  jumlah "Menunggu" di sidebar, dan notifikasi WhatsApp/Telegram ke admin saat ada pengajuan baru.
+- **Absen Pulang** — bebas lokasi (tidak memakai radius kantor). Titik GPS pulang tetap dicatat
+  beserta label lokasi ("Pulang dari kantor" / "Pulang di luar kantor / lapangan"), tampil di log
+  admin, riwayat pegawai, dan Excel (kolom Lokasi, Latitude, Longitude, Peta).
+- Jalankan `supabase/update-time-off-logout-lokasi.sql` sekali di SQL Editor.
+
 ## 1. Setup Supabase
 
 1. Buat project baru di [supabase.com](https://supabase.com) (gratis).

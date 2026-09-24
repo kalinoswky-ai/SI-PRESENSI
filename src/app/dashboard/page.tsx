@@ -145,7 +145,8 @@ export default function DashboardPage() {
           ok: true,
           text:
             (pendingType === "in" ? "Absen masuk berhasil dicatat" : "Absen pulang berhasil dicatat") +
-            (isWfh ? " (WFH)." : "."),
+            (isWfh ? " (WFH)." : ".") +
+            (pendingType === "out" && json.locationLabel ? ` Lokasi tercatat: ${json.locationLabel}.` : ""),
         });
         setTodayRecords((prev) => [...prev, json.record]);
       }
@@ -345,8 +346,8 @@ export default function DashboardPage() {
               // Absen pulang tidak mensyaratkan radius kantor — lokasi tetap direkam sbg jejak audit
               distance !== null && (
                 <span className="text-slate-600">
-                  Lokasi absen pulang tercatat: {Math.round(distance)}m dari kantor. Boleh dilakukan dari
-                  mana saja (mis. sedang audit/tugas lapangan).
+                  Absen pulang boleh dilakukan dari mana saja (mis. sedang audit/tugas lapangan).
+                  Titik lokasi Anda saat ini ({Math.round(distance)} m dari kantor) akan dicatat.
                 </span>
               )
             ) : isWfh ? (

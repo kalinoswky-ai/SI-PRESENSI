@@ -30,8 +30,8 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from("attendance")
     .select("*, employees(full_name, nip, position)")
-    .gte("server_time", `${from}T00:00:00.000Z`)
-    .lte("server_time", `${to}T23:59:59.999Z`)
+    .gte("server_time", `${from}T00:00:00+08:00`)
+    .lte("server_time", `${to}T23:59:59.999+08:00`)
     .order("server_time", { ascending: true });
 
   if (employeeId) query = query.eq("employee_id", employeeId);

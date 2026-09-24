@@ -29,7 +29,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ error: "Status tidak valid." }, { status: 400 });
   }
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("leave_requests")
     .update({
       status,
@@ -37,10 +37,20 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       reviewed_by: userData.user.id,
       reviewed_at: new Date().toISOString(),
     })
-    .eq("id", params.id);
+    .eq("id", params.id)
+    .eq("status", "pending")
+    .select("id");
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  // Update yang tidak mengenai baris apa pun (sudah diproses admin lain / diblokir RLS)
+  // jangan dilaporkan "berhasil".
+  if (!updated || updated.length === 0) {
+    return NextResponse.json(
+      { error: "Pengajuan tidak ditemukan atau sudah diproses. Muat ulang halaman." },
+      { status: 409 }
+    );
   }
 
   return NextResponse.json({ success: true });

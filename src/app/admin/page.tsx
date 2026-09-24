@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { witaDateKey } from "@/lib/geo";
 import { Users, CheckCircle2, AlertTriangle, Clock3 } from "lucide-react";
 import Link from "next/link";
 
@@ -12,8 +13,9 @@ export const revalidate = 0;
 export default async function AdminOverviewPage() {
   const supabase = createClient();
 
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  // Awal hari menurut WITA (server Vercel berjalan di UTC — tanpa ini absen pukul 07.00–08.00 WITA
+  // tidak terhitung pada kartu "Absen Masuk Hari Ini").
+  const startOfDayIso = `${witaDateKey(new Date())}T00:00:00+08:00`;
 
   const [{ count: totalEmployees }, { count: activeEmployees }, { data: todayAttendance }, { count: pendingLeave }] =
     await Promise.all([
@@ -22,7 +24,7 @@ export default async function AdminOverviewPage() {
       supabase
         .from("attendance")
         .select("id, type, status, is_late, employee_id")
-        .gte("server_time", startOfDay.toISOString()),
+        .gte("server_time", startOfDayIso),
       supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
     ]);
 

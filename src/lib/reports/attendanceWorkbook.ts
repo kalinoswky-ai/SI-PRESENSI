@@ -1,6 +1,6 @@
 import "server-only";
 import ExcelJS from "exceljs";
-import { formatWita } from "@/lib/geo";
+import { formatWita, mapsUrl } from "@/lib/geo";
 import type { AttendanceRecord } from "@/types";
 
 /**
@@ -22,6 +22,10 @@ export async function buildAttendanceWorkbook(records: AttendanceRecord[]) {
     { header: "Waktu (Server Clock, WITA)", key: "waktu", width: 26 },
     { header: "Mode Kerja", key: "mode", width: 12 },
     { header: "Jarak dari Kantor (m)", key: "jarak", width: 18 },
+    { header: "Lokasi", key: "lokasi", width: 38 },
+    { header: "Latitude", key: "lat", width: 13 },
+    { header: "Longitude", key: "lng", width: 13 },
+    { header: "Peta", key: "peta", width: 14 },
     { header: "Wajah Sesuai", key: "wajah", width: 14 },
     { header: "Status", key: "status", width: 12 },
     { header: "Terlambat", key: "terlambat", width: 12 },
@@ -44,6 +48,10 @@ export async function buildAttendanceWorkbook(records: AttendanceRecord[]) {
       waktu: formatWita(new Date(r.server_time)),
       mode: r.work_mode === "wfh" ? "WFH" : "WFO",
       jarak: r.work_mode === "wfh" ? "-" : Math.round(r.distance_meters),
+      lokasi: r.location_label ?? "-",
+      lat: r.latitude,
+      lng: r.longitude,
+      peta: { text: "Buka peta", hyperlink: mapsUrl(r.latitude, r.longitude) },
       wajah: r.face_match ? "Sesuai" : "Tidak Sesuai",
       status: r.status === "valid" ? "Valid" : "Ditolak",
       terlambat: r.is_late ? "Ya" : "-",
@@ -51,7 +59,7 @@ export async function buildAttendanceWorkbook(records: AttendanceRecord[]) {
     });
   });
 
-  sheet.autoFilter = { from: "A1", to: "L1" };
+  sheet.autoFilter = { from: "A1", to: "P1" };
 
   return workbook;
 }

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { notifyNewLeaveRequest } from "@/lib/notifications/notify";
+import type { LeaveType, Office } from "@/types";
 
 export async function POST(request: NextRequest) {
   const supabase = createClient();
@@ -58,5 +60,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ success: true, record });
+  // Beritahu admin (WhatsApp/Telegram) bahwa ada pengajuan baru — best-effort.
+  try {
+    const [{ data: employee }, { data: office }] = await Promise.all([
+      supabase.from("employees").select("full_name, nip, position").eq("id", userId).single(),
+      supabase.from("offices").select("*").limit(1).single(),
+    ]);
+    if (employee && office) {
+      await notifyNewLeaveRequest(employee, office as Office, {
+        type: type as LeaveType,
+        start_date: startDate,
+        end_date: endDate,
+        reason,
+      });
+    }
+  } catch {
+    // diabaikan: notifikasi tidak boleh menggagalkan pengajuan
+  }
+
+  return NextResponse.json({
+    success: true,
+    record,
+    attachmentFailed: Boolean(attachment && attachment.size > 0 && !attachmentUrl),
+  });
 }

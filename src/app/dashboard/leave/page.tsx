@@ -80,6 +80,9 @@ export default function LeavePage() {
       setShowForm(false);
       setForm({ type: "izin", start_date: "", end_date: "", reason: "" });
       setAttachment(null);
+      if (json.attachmentFailed) {
+        window.alert("Pengajuan terkirim, tetapi lampiran gagal diunggah. Hubungi Admin atau ajukan ulang dengan lampiran.");
+      }
       await load();
     } catch {
       setError("Terjadi kesalahan koneksi.");

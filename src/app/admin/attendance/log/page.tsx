@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { formatWita } from "@/lib/geo";
-import { Download, CheckCircle2, XCircle } from "lucide-react";
+import { formatWita, mapsUrl, formatDistance } from "@/lib/geo";
+import { Download, CheckCircle2, XCircle, MapPin } from "lucide-react";
 import AttendanceTabs from "../AttendanceTabs";
 
 function todayStr() {
@@ -28,8 +28,8 @@ export default async function AttendanceLogPage({
   let query = supabase
     .from("attendance")
     .select("*, employees(full_name, nip, position)")
-    .gte("server_time", `${from}T00:00:00.000Z`)
-    .lte("server_time", `${to}T23:59:59.999Z`)
+    .gte("server_time", `${from}T00:00:00+08:00`)
+    .lte("server_time", `${to}T23:59:59.999+08:00`)
     .order("server_time", { ascending: false });
 
   if (searchParams.employee_id) {
@@ -92,7 +92,7 @@ export default async function AttendanceLogPage({
               <th className="px-4 py-3">Jenis</th>
               <th className="px-4 py-3">Waktu Server</th>
               <th className="px-4 py-3">Mode</th>
-              <th className="px-4 py-3">Jarak</th>
+              <th className="px-4 py-3">Lokasi</th>
               <th className="px-4 py-3">Wajah</th>
               <th className="px-4 py-3">Status</th>
             </tr>
@@ -123,7 +123,18 @@ export default async function AttendanceLogPage({
                   </span>
                 </td>
                 <td className="px-4 py-3 text-slate-600">
-                  {r.work_mode === "wfh" ? "-" : `${Math.round(r.distance_meters)}m`}
+                  {r.location_label && <p className="text-xs">{r.location_label}</p>}
+                  <p className="text-xs text-slate-400">
+                    {r.work_mode === "wfh" ? "WFH" : `${formatDistance(r.distance_meters)} dari kantor`}
+                  </p>
+                  <a
+                    href={mapsUrl(r.latitude, r.longitude)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-0.5 inline-flex items-center gap-1 text-xs text-brand-600 hover:underline"
+                  >
+                    <MapPin size={12} /> Lihat peta
+                  </a>
                 </td>
                 <td className="px-4 py-3 text-slate-600">
                   {r.face_match ? (
@@ -145,7 +156,7 @@ export default async function AttendanceLogPage({
             ))}
             {(!records || records.length === 0) && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
                   Tidak ada data absensi pada rentang ini.
                 </td>
               </tr>

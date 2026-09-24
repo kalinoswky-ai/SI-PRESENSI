@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { formatWita } from "@/lib/geo";
+import { formatWita, mapsUrl, formatDistance } from "@/lib/geo";
 import type { AttendanceRecord } from "@/types";
-import { CheckCircle2, XCircle, Clock } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, MapPin } from "lucide-react";
 
 export default function HistoryPage() {
   const supabase = createClient();
@@ -58,6 +58,7 @@ export default function HistoryPage() {
                   )}
                 </p>
                 <p className="text-xs text-slate-500">{formatWita(new Date(r.server_time))}</p>
+                {r.location_label && <p className="text-xs text-slate-500">{r.location_label}</p>}
                 {r.status === "rejected" && (
                   <p className="text-xs text-red-500">{r.reject_reason}</p>
                 )}
@@ -65,7 +66,16 @@ export default function HistoryPage() {
             </div>
             <div className="flex items-center gap-1 text-xs text-slate-400">
               <Clock size={12} />
-              {r.work_mode === "wfh" ? "WFH" : `${Math.round(r.distance_meters)}m`}
+              {r.work_mode === "wfh" ? "WFH" : formatDistance(r.distance_meters)}
+              <a
+                href={mapsUrl(r.latitude, r.longitude)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-1 text-brand-600"
+                aria-label="Lihat lokasi di peta"
+              >
+                <MapPin size={14} />
+              </a>
             </div>
           </div>
         ))}

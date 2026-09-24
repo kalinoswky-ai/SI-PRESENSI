@@ -5,6 +5,7 @@ import {
   faceDistance,
   FACE_MATCH_THRESHOLD,
   isFridayWita,
+  formatDistance,
   isLateClockIn,
   witaDateKey,
   witaIsoWeekday,
@@ -179,6 +180,15 @@ export async function POST(request: NextRequest) {
     selfieUrl = fileName;
   }
 
+  // Label lokasi utk jejak audit. Absen PULANG boleh di mana saja (mis. tugas lapangan/audit yang
+  // belum selesai saat jam pulang kantor) — koordinat GPS + label ini selalu tercatat.
+  let locationLabel: string | null = apelLocation?.name ?? null;
+  if (type === "out") {
+    if (workMode === "wfh") locationLabel = "Pulang dari rumah (WFH)";
+    else if (withinOfficeGeofence) locationLabel = "Pulang dari kantor";
+    else locationLabel = `Pulang di luar kantor / lapangan (${formatDistance(distance)} dari kantor)`;
+  }
+
   const isLate = type === "in" ? isLateClockIn(serverTime, office.work_start, office.friday_hybrid) : false;
 
   // 7. Simpan record absensi (RLS memastikan employee_id = auth.uid())
@@ -200,7 +210,7 @@ export async function POST(request: NextRequest) {
       is_late: isLate,
       work_mode: workMode,
       apel_location_id: apelLocation?.id ?? null,
-      location_label: apelLocation?.name ?? null,
+      location_label: locationLabel,
     })
     .select()
     .single();
@@ -223,5 +233,6 @@ export async function POST(request: NextRequest) {
     isLate,
     workMode,
     apelLocationName: apelLocation?.name ?? null,
+    locationLabel,
   });
 }

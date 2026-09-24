@@ -121,3 +121,14 @@ export function isLateClockIn(
 
   return minutesNow > minutesStart;
 }
+
+/** Tautan Google Maps ke titik koordinat (dipakai utk menampilkan lokasi absen di log/riwayat). */
+export function mapsUrl(latitude: number, longitude: number): string {
+  return `https://www.google.com/maps?q=${latitude},${longitude}`;
+}
+
+/** Format jarak: "850 m" atau "12,4 km". */
+export function formatDistance(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} km`;
+}

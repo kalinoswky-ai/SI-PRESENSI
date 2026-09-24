@@ -33,7 +33,7 @@ const settingsLinks = [
   { href: "/admin/settings#integrasi", label: "Integrations", sublabel: "Laporan BKPSDM", icon: FileSpreadsheet },
 ];
 
-export default function AdminSidebar({ orgName }: { orgName: string }) {
+export default function AdminSidebar({ orgName, pendingLeave = 0 }: { orgName: string; pendingLeave?: number }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -91,6 +91,11 @@ export default function AdminSidebar({ orgName }: { orgName: string }) {
                       {link.sublabel}
                     </span>
                   </span>
+                  {link.href === "/admin/leave" && pendingLeave > 0 && (
+                    <span className="ml-auto rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white">
+                      {pendingLeave}
+                    </span>
+                  )}
                 </Link>
               </li>
             ))}
@@ -164,6 +169,11 @@ export default function AdminSidebar({ orgName }: { orgName: string }) {
               >
                 <link.icon size={15} />
                 {link.label}
+                {link.href === "/admin/leave" && pendingLeave > 0 && (
+                  <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                    {pendingLeave}
+                  </span>
+                )}
               </Link>
             )
           )}

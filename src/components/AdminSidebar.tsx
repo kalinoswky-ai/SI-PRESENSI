@@ -212,11 +212,6 @@ export default function AdminSidebar({
           </div>
           <div className="flex items-center gap-3">
             {isPimpinan && (
-              <Link href="/dashboard" className="text-slate-500" title="Absensi Saya">
-                <Clock size={18} />
-              </Link>
-            )}
-            {isPimpinan && (
               <Link href="/dashboard/account" className="text-slate-500" title="Ubah Password">
                 <KeyRound size={18} />
               </Link>
@@ -229,7 +224,9 @@ export default function AdminSidebar({
         <nav className="flex gap-1 overflow-x-auto border-t border-white/30 px-3 py-2">
           {[
             ...mainLinks,
-            ...(isPimpinan ? [] : [{ href: "/admin/settings", label: "Settings", sublabel: "", icon: Settings }]),
+            ...(isPimpinan
+              ? [{ href: "/dashboard", label: "Absensi Saya", sublabel: "", icon: Clock }]
+              : [{ href: "/admin/settings", label: "Settings", sublabel: "", icon: Settings }]),
           ].map(
             (link) => (
               <Link

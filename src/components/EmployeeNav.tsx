@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { LogOut, Home, CalendarDays, Briefcase, Timer, ScanFace, KeyRound } from "lucide-react";
+import { LogOut, Home, CalendarDays, Briefcase, Timer, ScanFace, KeyRound, BarChart3 } from "lucide-react";
 
 const links = [
   { href: "/dashboard", label: "Beranda", sublabel: "Home / Time Clock", icon: Home },
@@ -15,10 +15,14 @@ const links = [
   { href: "/dashboard/account", label: "Akun", sublabel: "Ubah Password", icon: KeyRound },
 ];
 
-export default function EmployeeNav({ title }: { title: string }) {
+/** Untuk akun 'pimpinan': tab tambahan agar bisa balik ke mode lihat statistik tanpa tombol Back. */
+const statistikLink = { href: "/admin", label: "Statistik", sublabel: "Lihat Statistik", icon: BarChart3 };
+
+export default function EmployeeNav({ title, isPimpinan = false }: { title: string; isPimpinan?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const navLinks = isPimpinan ? [statistikLink, ...links] : links;
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -45,7 +49,7 @@ export default function EmployeeNav({ title }: { title: string }) {
           </div>
 
           <nav className="hidden gap-1 sm:flex">
-            {links.map((link) => (
+            {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -72,14 +76,20 @@ export default function EmployeeNav({ title }: { title: string }) {
         </div>
       </header>
 
-      {/* Mobile bottom tab bar */}
-      <nav className="glass-nav fixed inset-x-0 bottom-0 top-auto z-10 flex border-b-0 border-t sm:hidden">
-        {links.map((link) => (
+      {/* Mobile bottom tab bar. Untuk pimpinan (7 tab) dibuat bisa digeser agar label tetap terbaca. */}
+      <nav
+        className={`glass-nav fixed inset-x-0 bottom-0 top-auto z-10 flex border-b-0 border-t sm:hidden ${
+          isPimpinan ? "overflow-x-auto" : ""
+        }`}
+      >
+        {navLinks.map((link) => (
           <Link
             key={link.href}
             href={link.href}
             aria-current={pathname === link.href ? "page" : undefined}
-            className="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium transition"
+            className={`flex flex-col items-center gap-0.5 py-2 text-xs font-medium transition ${
+              isPimpinan ? "w-[70px] shrink-0" : "flex-1"
+            }`}
           >
             <span
               className={`flex h-7 w-12 items-center justify-center rounded-full transition ${

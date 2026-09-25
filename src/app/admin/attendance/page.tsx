@@ -17,7 +17,8 @@ import {
   toDDMM,
   weekRange,
 } from "@/lib/reports/attendanceGrid";
-import type { AttendanceRecord } from "@/types";
+import { buildLeaveDayMap, resolveAbsentDayLabel, type AbsenceEmployee } from "@/lib/reports/absenceStatus";
+import type { AttendanceRecord, LeaveRequest } from "@/types";
 
 // Selalu render ulang & ambil data terbaru dari Supabase — jangan di-cache Next.js.
 export const dynamic = "force-dynamic";
@@ -88,9 +89,22 @@ export default async function TimesheetsGridPage({
 
   const { data: employees } = await supabase
     .from("employees")
-    .select("id, full_name, nip")
+    .select("id, full_name, nip, face_enrollment_status, is_active")
     .eq("is_active", true)
     .order("full_name");
+
+  // Pengajuan cuti/izin/sakit yang SUDAH DISETUJUI dan bersinggungan dengan periode yang
+  // sedang dilihat — dipakai untuk mengecualikan status "Tanpa Berita" pada pegawai yang
+  // memang sedang cuti/izin/sakit resmi (bukan tanpa berita).
+  const { data: leaves } = await supabase
+    .from("leave_requests")
+    .select("employee_id, start_date, end_date, type, status")
+    .eq("status", "approved")
+    .lte("start_date", end)
+    .gte("end_date", start);
+  const leaveMap = buildLeaveDayMap(
+    (leaves ?? []) as Pick<LeaveRequest, "employee_id" | "start_date" | "end_date" | "type" | "status">[]
+  );
 
   const { data: records } = await fetchAllRows<
     Pick<AttendanceRecord, "employee_id" | "type" | "server_time" | "status" | "is_late">
@@ -146,12 +160,13 @@ export default async function TimesheetsGridPage({
       </div>
 
       {view === "day" ? (
-        <TimesheetDayTable date={start} rows={buildDayRows(employees ?? [], rows)} />
+        <TimesheetDayTable date={start} rows={buildDayRows(employees ?? [], rows, start, leaveMap)} />
       ) : (
         <TimesheetGridTable
           employees={employees ?? []}
           days={days}
           grid={buildAttendanceGrid(rows)}
+          leaveMap={leaveMap}
           compact={view === "month"}
         />
       )}
@@ -161,6 +176,10 @@ export default async function TimesheetsGridPage({
         <AlertTriangle className="mx-1 inline text-amber-600" size={12} />
         menandai hari dengan absen masuk terlambat. Klik jam pada tabel untuk membuka data absensi hari itu dan
         mengoreksi (Edit) atau menghapusnya; atau buka tab <strong>Log Absensi</strong> di atas.
+        <br />
+        <span className="font-medium text-rose-700">TB / Tanpa Berita</span> = rekam wajah pegawai sudah aktif
+        (bisa mengklik tombol absensi) tetapi sama sekali tidak absen masuk maupun pulang pada hari kerja itu, dan
+        tidak sedang cuti/izin/sakit yang disetujui.
       </p>
     </div>
   );
@@ -168,8 +187,10 @@ export default async function TimesheetsGridPage({
 
 /** Susun baris untuk tampilan Harian: absen masuk paling awal & absen pulang paling akhir per pegawai. */
 function buildDayRows(
-  employees: { id: string; full_name: string; nip: string | null }[],
-  rows: Pick<AttendanceRecord, "employee_id" | "type" | "server_time" | "is_late">[]
+  employees: AbsenceEmployee[],
+  rows: Pick<AttendanceRecord, "employee_id" | "type" | "server_time" | "is_late">[],
+  date: string,
+  leaveMap: ReturnType<typeof buildLeaveDayMap>
 ): DayRow[] {
   const byEmployee = new Map<string, typeof rows>();
   for (const r of rows) {
@@ -191,6 +212,7 @@ function buildDayRows(
       }
     }
     const minutes = firstIn && lastOut ? (new Date(lastOut).getTime() - new Date(firstIn).getTime()) / 60000 : 0;
-    return { employee: e, firstIn, lastOut, minutes, late };
+    const absentLabel = !firstIn && !lastOut ? resolveAbsentDayLabel(e, date, leaveMap) : null;
+    return { employee: e, firstIn, lastOut, minutes, late, absentLabel };
   });
 }

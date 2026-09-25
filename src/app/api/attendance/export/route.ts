@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/fetchAll";
 import { buildAttendanceWorkbook, EMPLOYEE_EXPORT_COLUMNS, type EmployeeExportRow } from "@/lib/reports/attendanceWorkbook";
 import { buildAttendanceGrid, rangeDays } from "@/lib/reports/attendanceGrid";
-import type { AttendanceRecord } from "@/types";
+import { buildLeaveDayMap, type AbsenceEmployee } from "@/lib/reports/absenceStatus";
+import type { AttendanceRecord, LeaveRequest } from "@/types";
 
 // Selalu ambil data terbaru dari Supabase saat export diklik — jangan di-cache Next.js.
 export const dynamic = "force-dynamic";
@@ -68,28 +69,46 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: empError }, { status: 500 });
   }
 
+  // Pegawai aktif (dgn status rekam wajah) + rentang hari periode ekspor — dipakai untuk
+  // menandai hari tanpa absen sama sekali sebagai "Tanpa Berita" (atau cuti/izin/sakit bila
+  // sedang disetujui), baik pada sheet rekap grid maupun sheet Resume.
+  let absenceEmployeesQuery = supabase
+    .from("employees")
+    .select("id, full_name, nip, position, face_enrollment_status, is_active")
+    .eq("is_active", true)
+    .order("full_name");
+  if (employeeId) absenceEmployeesQuery = absenceEmployeesQuery.eq("id", employeeId);
+  const { data: absenceEmployeesRaw } = await absenceEmployeesQuery;
+  const absenceEmployees = (absenceEmployeesRaw ?? []) as AbsenceEmployee[];
+
+  const { data: leaves } = await supabase
+    .from("leave_requests")
+    .select("employee_id, start_date, end_date, type, status")
+    .eq("status", "approved")
+    .lte("start_date", to)
+    .gte("end_date", from);
+  const leaveMap = buildLeaveDayMap(
+    (leaves ?? []) as Pick<LeaveRequest, "employee_id" | "start_date" | "end_date" | "type" | "status">[]
+  );
+  const absenceInput = { employees: absenceEmployees, days: rangeDays(from, to), leaveMap };
+
   // Sheet rekap grid pertama (Pegawai x Hari) hanya dibuat bila diminta dari tab Timesheets
   // (view diisi) dan bukan export per satu pegawai (grid dirancang untuk seluruh pegawai aktif).
   let gridInput;
   if (view && PERIOD_LABEL[view] && !employeeId) {
-    const { data: activeEmployees } = await supabase
-      .from("employees")
-      .select("id, full_name, nip")
-      .eq("is_active", true)
-      .order("full_name");
     const gridRows = (records ?? []).filter((r) => r.status === "valid") as Pick<
       AttendanceRecord,
       "employee_id" | "type" | "server_time" | "is_late"
     >[];
     gridInput = {
-      employees: activeEmployees ?? [],
+      employees: absenceEmployees,
       days: rangeDays(from, to),
       grid: buildAttendanceGrid(gridRows),
       sheetName: `Rekap ${periodLabel}`,
     };
   }
 
-  const workbook = await buildAttendanceWorkbook(records, employees, gridInput);
+  const workbook = await buildAttendanceWorkbook(records, employees, gridInput, absenceInput);
   const buffer = await workbook.xlsx.writeBuffer();
   const periodSuffix = periodLabel ? `_${periodLabel}` : "";
   const filename = `Rekap-Absensi-Inspektorat-Sumba-Barat${periodSuffix}_${from}_sd_${to}.xlsx`;

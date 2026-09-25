@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { formatDurationMinutes } from "@/lib/geo";
 import { toDDMM, weekdayShort, type AttendanceGrid } from "@/lib/reports/attendanceGrid";
+import { resolveAbsentDayLabel, TANPA_BERITA_LABEL, type AbsenceEmployee, type LeaveDayMap } from "@/lib/reports/absenceStatus";
 
 /**
  * Tabel grid Pegawai x Hari, dipakai bersama oleh tampilan Mingguan & Bulanan.
@@ -13,11 +14,13 @@ export default function TimesheetGridTable({
   employees,
   days,
   grid,
+  leaveMap,
   compact = false,
 }: {
-  employees: { id: string; full_name: string; nip: string | null }[];
+  employees: AbsenceEmployee[];
   days: string[];
   grid: AttendanceGrid;
+  leaveMap: LeaveDayMap;
   /** Kolom lebih ramping untuk tampilan Bulanan (banyak kolom). */
   compact?: boolean;
 }) {
@@ -58,6 +61,7 @@ export default function TimesheetGridTable({
                 {days.map((d) => {
                   const cell = dayMap?.get(d);
                   if (cell) total += cell.minutes;
+                  const absentLabel = !cell ? resolveAbsentDayLabel(e, d, leaveMap) : null;
                   return (
                     <td key={d} className={`border-b border-slate-100 text-center ${dayColClass}`}>
                       {cell ? (
@@ -71,6 +75,20 @@ export default function TimesheetGridTable({
                           {cell.late && <AlertTriangle size={12} />}
                           {cell.minutes > 0 ? formatDurationMinutes(cell.minutes) : "Masuk"}
                         </Link>
+                      ) : absentLabel === TANPA_BERITA_LABEL ? (
+                        <span
+                          title="Rekam wajah sudah aktif, tetapi tidak ada absen masuk maupun pulang hari ini."
+                          className="inline-flex items-center gap-0.5 rounded bg-rose-50 px-1 py-0.5 text-xs font-medium text-rose-700"
+                        >
+                          TB
+                        </span>
+                      ) : absentLabel ? (
+                        <span
+                          title={absentLabel}
+                          className="inline-flex items-center rounded bg-slate-100 px-1 py-0.5 text-xs font-medium text-slate-600"
+                        >
+                          {absentLabel}
+                        </span>
                       ) : (
                         <span className="text-slate-300">-</span>
                       )}

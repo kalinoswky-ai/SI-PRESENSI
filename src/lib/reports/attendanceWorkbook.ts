@@ -2,6 +2,7 @@ import "server-only";
 import ExcelJS from "exceljs";
 import { formatDurationMinutes, mapsUrl, witaDateKey } from "@/lib/geo";
 import { toDDMM, weekdayShort, type AttendanceGrid } from "@/lib/reports/attendanceGrid";
+import { resolveAbsentDayLabel, TANPA_BERITA_LABEL, type AbsenceEmployee, type LeaveDayMap } from "@/lib/reports/absenceStatus";
 import { ROLE_LABEL } from "@/types";
 import type { AttendanceRecord, Employee } from "@/types";
 
@@ -134,10 +135,11 @@ function addDetailSheet(workbook: ExcelJS.Workbook, records: AttendanceRecord[],
  */
 function addGridSheet(
   workbook: ExcelJS.Workbook,
-  employees: { id: string; full_name: string; nip: string | null }[],
+  employees: AbsenceEmployee[],
   days: string[],
   grid: AttendanceGrid,
-  sheetName: string
+  sheetName: string,
+  leaveMap: LeaveDayMap
 ) {
   const sheet = workbook.addWorksheet(sheetName);
 
@@ -156,10 +158,18 @@ function addGridSheet(
     for (const d of days) {
       const cell = dayMap?.get(d);
       if (cell) total += cell.minutes;
-      row[d] = cell ? (cell.minutes > 0 ? formatDurationMinutes(cell.minutes) : "Masuk") + (cell.late ? " (Terlambat)" : "") : "-";
+      row[d] = cell
+        ? (cell.minutes > 0 ? formatDurationMinutes(cell.minutes) : "Masuk") + (cell.late ? " (Terlambat)" : "")
+        : resolveAbsentDayLabel(e, d, leaveMap) ?? "-";
     }
     row.total = formatDurationMinutes(total);
-    sheet.addRow(row);
+    const addedRow = sheet.addRow(row);
+    // Sorot merah muda sel "Tanpa Berita" agar mudah terlihat saat diperiksa di Excel.
+    for (const d of days) {
+      if (row[d] === TANPA_BERITA_LABEL) {
+        addedRow.getCell(d).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFCE4E4" } };
+      }
+    }
   });
 
   if (employees.length === 0) {
@@ -176,8 +186,12 @@ function addGridSheet(
   sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: sheet.columns.length } };
 }
 
+/** Input opsional untuk menambahkan baris "Tanpa Berita" / cuti-izin-sakit pada sheet Resume,
+ *  untuk hari-hari yang SAMA SEKALI tidak ada absen masuk maupun pulang. */
+export type AbsenceInput = { employees: AbsenceEmployee[]; days: string[]; leaveMap: LeaveDayMap };
+
 /** Sheet Resume: jam masuk + jam pulang digabung per pegawai per hari (WITA). */
-function addResumeSheet(workbook: ExcelJS.Workbook, records: AttendanceRecord[]) {
+function addResumeSheet(workbook: ExcelJS.Workbook, records: AttendanceRecord[], absenceInput?: AbsenceInput) {
   const sheet = workbook.addWorksheet("Resume");
   sheet.columns = [
     { header: "No", key: "no", width: 5 },
@@ -198,11 +212,16 @@ function addResumeSheet(workbook: ExcelJS.Workbook, records: AttendanceRecord[])
   interface Day {
     sortKey: string; // nama + tanggal, untuk pengurutan
     date: string; // YYYY-MM-DD (WITA)
+    employeeId: string;
+    nip: string | null;
+    nama: string;
+    jabatan: string | null;
     first: AttendanceRecord | null; // absen masuk paling awal
     last: AttendanceRecord | null; // absen pulang paling akhir
-    any: AttendanceRecord;
+    any: AttendanceRecord | null;
   }
   const days = new Map<string, Day>();
+  const absentLabels = new Map<string, string>(); // "employeeId|date" -> "Tanpa Berita" | label cuti
 
   for (const r of records) {
     if (r.status !== "valid") continue; // resume hanya memakai absensi yang sah
@@ -210,7 +229,17 @@ function addResumeSheet(workbook: ExcelJS.Workbook, records: AttendanceRecord[])
     const key = `${r.employee_id}|${date}`;
     let d = days.get(key);
     if (!d) {
-      d = { sortKey: `${(r.employees?.full_name ?? "").toLowerCase()}|${date}`, date, first: null, last: null, any: r };
+      d = {
+        sortKey: `${(r.employees?.full_name ?? "").toLowerCase()}|${date}`,
+        date,
+        employeeId: r.employee_id,
+        nip: r.employees?.nip ?? null,
+        nama: r.employees?.full_name ?? "-",
+        jabatan: r.employees?.position ?? null,
+        first: null,
+        last: null,
+        any: r,
+      };
       days.set(key, d);
     }
     const t = new Date(r.server_time).getTime();
@@ -221,24 +250,62 @@ function addResumeSheet(workbook: ExcelJS.Workbook, records: AttendanceRecord[])
     }
   }
 
+  // Tambahkan baris untuk hari kerja yang SAMA SEKALI tidak ada absen (masuk maupun pulang),
+  // ditandai "Tanpa Berita" (rekam wajah sudah aktif) atau label cuti/izin/sakit bila sedang
+  // cuti resmi yang disetujui pada hari itu.
+  if (absenceInput) {
+    const { employees, days: dayList, leaveMap } = absenceInput;
+    for (const e of employees) {
+      for (const date of dayList) {
+        const key = `${e.id}|${date}`;
+        if (days.has(key)) continue; // sudah ada absen hari itu
+        const label = resolveAbsentDayLabel(e, date, leaveMap);
+        if (!label) continue;
+        days.set(key, {
+          sortKey: `${e.full_name.toLowerCase()}|${date}`,
+          date,
+          employeeId: e.id,
+          nip: e.nip ?? null,
+          nama: e.full_name,
+          jabatan: e.position ?? null,
+          first: null,
+          last: null,
+          any: null,
+        });
+        // Simpan label absen terpisah agar tidak tertukar dgn logika Terlambat/Tepat Waktu di bawah.
+        absentLabels.set(key, label);
+      }
+    }
+  }
+
   Array.from(days.values())
     .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
     .forEach((d, i) => {
       const { first, last, any } = d;
+      const key = `${d.employeeId}|${d.date}`;
+      const absentLabel = absentLabels.get(key);
       const minutes = first && last ? Math.round((new Date(last.server_time).getTime() - new Date(first.server_time).getTime()) / 60000) : 0;
-      const note = !first ? "Tidak ada absen masuk" : !last ? "Belum/tidak absen pulang" : "-";
+      const note = absentLabel
+        ? absentLabel === TANPA_BERITA_LABEL
+          ? "Tidak ada absen masuk maupun pulang"
+          : `Sedang ${absentLabel} (disetujui)`
+        : !first
+          ? "Tidak ada absen masuk"
+          : !last
+            ? "Belum/tidak absen pulang"
+            : "-";
 
       sheet.addRow({
         no: i + 1,
-        nip: any.employees?.nip ?? "-",
-        nama: any.employees?.full_name ?? "-",
-        jabatan: any.employees?.position ?? "-",
-        tanggal: fmtDate((first ?? last ?? any).server_time),
+        nip: d.nip ?? "-",
+        nama: d.nama,
+        jabatan: d.jabatan ?? "-",
+        tanggal: fmtDate((first ?? last ?? any)?.server_time ?? `${d.date}T00:00:00+08:00`),
         masuk: first ? fmtTime(first.server_time) : "-",
         pulang: last ? fmtTime(last.server_time) : "-",
         durasi: formatDurationMinutes(minutes),
-        status: first ? (first.is_late ? "Terlambat" : "Tepat Waktu") : "-",
-        mode: modeLabel(first ?? last ?? any),
+        status: absentLabel ?? (first ? (first.is_late ? "Terlambat" : "Tepat Waktu") : "-"),
+        mode: first || last || any ? modeLabel((first ?? last ?? any) as AttendanceRecord) : "-",
         lokMasuk: first?.location_label ?? "-",
         lokPulang: last?.location_label ?? "-",
         keterangan: note,
@@ -246,6 +313,17 @@ function addResumeSheet(workbook: ExcelJS.Workbook, records: AttendanceRecord[])
     });
 
   styleHeader(sheet);
+
+  // Sorot merah muda baris "Tanpa Berita" agar mudah terlihat saat diperiksa di Excel.
+  sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const statusCell = row.getCell("status");
+    if (statusCell.value === TANPA_BERITA_LABEL) {
+      row.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFCE4E4" } };
+      });
+    }
+  });
 }
 
 /** Sheet Data Pegawai: seluruh pegawai (aktif & nonaktif) sesuai kondisi database saat export diklik. */
@@ -292,7 +370,7 @@ export function addEmployeeSheet(workbook: ExcelJS.Workbook, employees: Employee
 
 /** Info grid opsional (Pegawai x Hari) untuk sheet rekap pertama, mencerminkan tampilan Harian/Mingguan/Bulanan di web. */
 export type GridSheetInput = {
-  employees: { id: string; full_name: string; nip: string | null }[];
+  employees: AbsenceEmployee[];
   days: string[];
   grid: AttendanceGrid;
   sheetName: string;
@@ -301,15 +379,24 @@ export type GridSheetInput = {
 export async function buildAttendanceWorkbook(
   records: AttendanceRecord[],
   employees?: EmployeeExportRow[],
-  gridInput?: GridSheetInput
+  gridInput?: GridSheetInput,
+  absenceInput?: AbsenceInput
 ) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Sistem Absensi Digital - Inspektorat Sumba Barat";
 
-  if (gridInput) addGridSheet(workbook, gridInput.employees, gridInput.days, gridInput.grid, gridInput.sheetName);
+  if (gridInput)
+    addGridSheet(
+      workbook,
+      gridInput.employees,
+      gridInput.days,
+      gridInput.grid,
+      gridInput.sheetName,
+      absenceInput?.leaveMap ?? new Map()
+    );
   addDetailSheet(workbook, records, "in");
   addDetailSheet(workbook, records, "out");
-  addResumeSheet(workbook, records);
+  addResumeSheet(workbook, records, absenceInput);
   if (employees) addEmployeeSheet(workbook, employees);
 
   return workbook;

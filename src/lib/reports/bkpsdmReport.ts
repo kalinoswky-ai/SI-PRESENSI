@@ -2,8 +2,10 @@ import "server-only";
 import { fetchAllRows } from "@/lib/supabase/fetchAll";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildAttendanceWorkbook } from "@/lib/reports/attendanceWorkbook";
+import { rangeDays } from "@/lib/reports/attendanceGrid";
+import { buildLeaveDayMap, type AbsenceEmployee } from "@/lib/reports/absenceStatus";
 import { sendEmailWithAttachment } from "@/lib/notifications/email";
-import type { Office } from "@/types";
+import type { Office, LeaveRequest } from "@/types";
 
 /**
  * Hitung rentang tanggal laporan berikutnya berdasarkan jadwal yang dipilih
@@ -62,7 +64,29 @@ export async function generateAndSendBkpsdmReport(office: Office, from: string, 
     throw new Error(`Gagal mengambil data absensi: ${error}`);
   }
 
-  const workbook = await buildAttendanceWorkbook(records);
+  // Pegawai aktif + cuti/izin/sakit yang disetujui pada periode ini, agar sheet Resume laporan
+  // otomatis ini juga menandai hari tanpa absen sama sekali sebagai "Tanpa Berita" (bukan sekadar
+  // hilang dari laporan), konsisten dengan export manual admin.
+  const { data: activeEmployees } = await admin
+    .from("employees")
+    .select("id, full_name, nip, position, face_enrollment_status, is_active")
+    .eq("is_active", true);
+  const { data: leaves } = await admin
+    .from("leave_requests")
+    .select("employee_id, start_date, end_date, type, status")
+    .eq("status", "approved")
+    .lte("start_date", to)
+    .gte("end_date", from);
+  const leaveMap = buildLeaveDayMap(
+    (leaves ?? []) as Pick<LeaveRequest, "employee_id" | "start_date" | "end_date" | "type" | "status">[]
+  );
+  const absenceInput = {
+    employees: (activeEmployees ?? []) as AbsenceEmployee[],
+    days: rangeDays(from, to),
+    leaveMap,
+  };
+
+  const workbook = await buildAttendanceWorkbook(records, undefined, undefined, absenceInput);
   const buffer = await workbook.xlsx.writeBuffer();
   const filename = `Rekap-Absensi-${office.name.replace(/\s+/g, "-")}_${from}_sd_${to}.xlsx`;
 

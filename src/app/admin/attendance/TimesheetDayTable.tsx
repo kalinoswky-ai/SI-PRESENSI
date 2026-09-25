@@ -9,11 +9,17 @@ const TIME_FMT = new Intl.DateTimeFormat("en-GB", {
 });
 
 export type DayRow = {
-  employee: { id: string; full_name: string; nip: string | null };
+  employee: { id: string; full_name: string; nip?: string | null };
   firstIn: string | null; // ISO server_time absen masuk paling awal
   lastOut: string | null; // ISO server_time absen pulang paling akhir
   minutes: number;
   late: boolean;
+  /**
+   * Terisi ketika TIDAK ada absen masuk maupun pulang sama sekali hari itu: "Tanpa Berita"
+   * (rekam wajah sudah aktif tapi tidak absen), atau label cuti/izin/sakit bila sedang cuti
+   * resmi yang disetujui. null bila tidak berlaku (hari libur / rekam wajah belum aktif).
+   */
+  absentLabel: string | null;
 };
 
 /**
@@ -46,7 +52,7 @@ export default function TimesheetDayTable({ date, rows }: { date: string; rows: 
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {rows.map(({ employee: e, firstIn, lastOut, minutes, late }) => (
+          {rows.map(({ employee: e, firstIn, lastOut, minutes, late, absentLabel }) => (
             <tr key={e.id} className="group">
               <td className="sticky left-0 z-10 border-b border-slate-100 bg-white px-4 py-3 group-hover:bg-slate-50">
                 <p className="font-medium text-slate-800">{e.full_name}</p>
@@ -85,7 +91,18 @@ export default function TimesheetDayTable({ date, rows }: { date: string; rows: 
                 {minutes > 0 ? formatDurationMinutes(minutes) : <span className="text-slate-300">-</span>}
               </td>
               <td className="border-b border-slate-100 px-3 py-3 text-center">
-                {!firstIn ? (
+                {!firstIn && absentLabel === "Tanpa Berita" ? (
+                  <span
+                    title="Rekam wajah sudah aktif, tetapi tidak ada absen masuk maupun pulang hari ini."
+                    className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700"
+                  >
+                    <AlertTriangle size={12} /> Tanpa Berita
+                  </span>
+                ) : !firstIn && absentLabel ? (
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                    {absentLabel}
+                  </span>
+                ) : !firstIn ? (
                   <span className="text-slate-300">Tidak Masuk</span>
                 ) : late ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">

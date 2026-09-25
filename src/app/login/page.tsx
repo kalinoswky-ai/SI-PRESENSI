@@ -34,16 +34,17 @@ export default function LoginPage() {
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-login-gradient px-4 py-10">
-      {/* Background: gedung Inspektorat Kab. Sumba Barat */}
+      {/* Background: gedung Inspektorat Kab. Sumba Barat — dibuat lebih terang & jelas,
+          overlay gelap dikurangi drastis (hanya cukup untuk kontras teks & kartu form). */}
       <div className="absolute inset-0">
         <Image
           src="/gedung-inspektorat.png"
           alt="Gedung Inspektorat Kabupaten Sumba Barat"
           fill
           priority
-          className="object-cover opacity-40"
+          className="object-cover opacity-95"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0b1220]/80 via-[#0b1220]/70 to-[#0b1220]/90" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0b1220]/30 via-[#0b1220]/20 to-[#0b1220]/55" />
       </div>
 
       <div className="relative z-10 w-full max-w-md">

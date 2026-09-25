@@ -135,6 +135,23 @@ export default function EmployeeDetailPage() {
             />
           </div>
           <div>
+            <label className="label">Email (untuk login)</label>
+            <input
+              type="email"
+              className="input"
+              defaultValue={employee.email}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v && v !== employee.email) patch({ email: v });
+              }}
+              placeholder="nama@contoh.go.id"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Ini email untuk pegawai login, bukan sekadar catatan. Ubah di sini langsung berlaku —
+              tidak perlu hapus &amp; daftarkan ulang akunnya.
+            </p>
+          </div>
+          <div>
             <label className="label">No. WhatsApp</label>
             <input
               type="tel"

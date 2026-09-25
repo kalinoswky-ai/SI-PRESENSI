@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/admin/auth";
 import { writeAudit } from "@/lib/admin/audit";
 
 const EDITABLE = ["full_name", "position", "role", "is_active", "nip", "phone", "apel_group"] as const;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Edit data pegawai (khusus Admin). Perubahan dicatat di audit_log.
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
@@ -24,14 +25,30 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ error: "Role tidak valid." }, { status: 400 });
   }
 
+  // Email = alamat login (akun Supabase Auth), bukan sekadar kolom biasa — perlu penanganan
+  // khusus agar pegawai tidak perlu dihapus & didaftarkan ulang saat gantiganti email.
+  let newEmail: string | null = null;
+  if ("email" in body) {
+    newEmail = String(body.email ?? "").trim().toLowerCase();
+    if (!EMAIL_RE.test(newEmail)) {
+      return NextResponse.json({ error: "Format email tidak valid." }, { status: 400 });
+    }
+  }
+
   const admin = createAdminClient();
   const { data: old } = await admin
     .from("employees")
-    .select("id, nip, full_name, position, role, is_active, phone, apel_group")
+    .select("id, nip, full_name, position, role, is_active, phone, apel_group, email")
     .eq("id", params.id)
     .single();
   if (!old) {
     return NextResponse.json({ error: "Pegawai tidak ditemukan." }, { status: 404 });
+  }
+
+  if (newEmail && newEmail !== old.email) {
+    updates.email = newEmail;
+  } else {
+    newEmail = null; // tidak berubah, tidak perlu sentuh Auth
   }
 
   const oldChanged: Record<string, unknown> = {};
@@ -64,6 +81,22 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         { error: "Tidak dapat menurunkan/menonaktifkan satu-satunya Admin aktif." },
         { status: 400 }
       );
+    }
+  }
+
+  // Ganti email login di Supabase Auth DULU (sebelum audit/DB). Bila gagal (mis. email sudah
+  // dipakai akun lain), batal di sini — jangan sampai kolom employees.email berubah tapi akun
+  // login masih pakai email lama, atau tercatat di Riwayat Perubahan padahal gagal.
+  if (newEmail) {
+    const { error: authEmailError } = await admin.auth.admin.updateUserById(params.id, {
+      email: newEmail,
+      email_confirm: true,
+    });
+    if (authEmailError) {
+      const message = /already.*registered|already.*exists/i.test(authEmailError.message)
+        ? "Email tersebut sudah dipakai akun pegawai lain."
+        : authEmailError.message;
+      return NextResponse.json({ error: message }, { status: 400 });
     }
   }
 

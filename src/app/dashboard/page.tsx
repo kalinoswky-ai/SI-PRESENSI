@@ -152,10 +152,14 @@ export default function DashboardPage() {
 
   // Pilihan WFO/WFH hanya muncul pada hari Jumat bila kebijakan Jumat hybrid aktif
   const hybridToday = Boolean(office?.friday_hybrid) && isFriday;
+  // Pengecualian apel yang disetujui & berlaku hari ini, DAN hari ini memang ada jadwal apel
+  // (Senin/Rabu/tanggal 17) utk pegawai ybs -> boleh absen dari rumah masing-masing, tidak
+  // wajib ke kantor (server memaksa work_mode = 'wfh' pada kondisi ini, lihat API clock).
+  const isApelExemptToday = Boolean(apelExemption) && apelCandidates.length > 0;
   // Mode kerja yang berlaku saat ini: absen pulang mengikuti mode absen masuk
   const activeMode: WorkMode = validIn ? (validIn.work_mode === "wfh" ? "wfh" : "wfo") : (chosenMode ?? "wfo");
-  const isWfh = hybridToday && activeMode === "wfh";
-  const needModeChoice = hybridToday && !validIn && !chosenMode;
+  const isWfh = isApelExemptToday || (hybridToday && activeMode === "wfh");
+  const needModeChoice = hybridToday && !validIn && !chosenMode && !isApelExemptToday;
 
   // Pilihan lokasi apel (Senin/Rabu) hanya relevan sebelum absen MASUK & bila ada >1 kandidat lokasi
   const needApelChoice = !validIn && apelCandidates.length > 1 && !chosenApelId;
@@ -307,8 +311,9 @@ export default function DashboardPage() {
           <p className="text-sm text-teal-800">
             Anda dikecualikan dari hadir fisik apel pagi hari ini (
             <strong>{APEL_EXEMPTION_REASON_LABEL[apelExemption.apel_exemption_reason as ApelExemptionReason]}</strong>
-            , disetujui pimpinan). Anda tetap wajib absen masuk seperti biasa dari Kantor — akan
-            tercatat <strong>Hadir</strong>.
+            , disetujui pimpinan). Anda tetap wajib absen masuk & pulang seperti biasa — akan
+            tercatat <strong>Hadir</strong> — namun boleh dilakukan <strong>dari rumah</strong>,
+            tidak perlu datang ke kantor.
           </p>
         </div>
       )}
@@ -394,7 +399,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="card text-center">
-            {hybridToday && (
+            {(hybridToday || isApelExemptToday) && (
               <p
                 className={`mx-auto mb-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
                   isWfh ? "bg-emerald-100 text-emerald-700" : "bg-brand-100 text-brand-700"

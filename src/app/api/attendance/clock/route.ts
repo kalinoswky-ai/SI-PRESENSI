@@ -86,36 +86,12 @@ export async function POST(request: NextRequest) {
   // 5. Waktu server — SATU-SATUNYA sumber waktu yang dipercaya (bukan jam HP pegawai)
   const serverTime = new Date();
 
-  // 3a. Tentukan mode kerja. WFH HANYA berlaku pada hari Jumat bila kebijakan Jumat hybrid aktif;
-  //     di hari lain selalu WFO (wajib geofencing) berapa pun yang dikirim klien.
-  const hybridFriday = Boolean(office.friday_hybrid) && isFridayWita(serverTime);
-  let workMode: WorkMode = "wfo";
-  if (hybridFriday) {
-    if (type === "in") {
-      workMode = requestedMode;
-    } else {
-      // Absen pulang mengikuti mode absen masuk hari ini (tidak bisa ganti mode di tengah hari)
-      const dayStart = `${witaDateKey(serverTime)}T00:00:00+08:00`;
-      const { data: todayIn } = await supabase
-        .from("attendance")
-        .select("work_mode")
-        .eq("employee_id", userId)
-        .eq("type", "in")
-        .eq("status", "valid")
-        .gte("server_time", dayStart)
-        .order("server_time", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      workMode = todayIn?.work_mode === "wfh" ? "wfh" : "wfo";
-    }
-  }
-
-  // 3b. Validasi geofencing (dihitung ulang di server, tidak percaya klien).
+  // 3a. Validasi geofencing kantor (dihitung ulang di server, tidak percaya klien).
   //     Jarak tetap dicatat untuk WFH, tetapi radius kantor hanya diwajibkan untuk WFO.
   const distance = distanceInMeters(latitude, longitude, office.latitude, office.longitude);
   const withinOfficeGeofence = distance <= office.radius_meters;
 
-  // 3c. Lokasi apel pagi: jadwal MINGGUAN Senin (Kantor Bupati, semua pegawai) & Rabu (per
+  // 3b. Lokasi apel pagi: jadwal MINGGUAN Senin (Kantor Bupati, semua pegawai) & Rabu (per
   //     kelompok OPD), maupun jadwal BULANAN pada tanggal tetap (mis. tanggal 17 — Apel
   //     Kesadaran Nasional, biasanya semua pegawai). Absen masuk pada hari tsb boleh
   //     dilakukan dari lokasi apel, bukan hanya kantor. Dihitung ulang di server: kandidat
@@ -157,11 +133,11 @@ export async function POST(request: NextRequest) {
 
   const withinGeofence = withinOfficeGeofence || withinApelGeofence;
 
-  // 3d. Pengecualian apel (sakit/hamil/alasan khusus) yang sudah disetujui pimpinan/Inspektur
+  // 3c. Pengecualian apel (sakit/hamil/alasan khusus) yang sudah disetujui pimpinan/Inspektur
   //     utk tanggal ini — dicek ULANG di server (bukan hanya kiriman klien) agar tidak bisa
-  //     dipalsukan. Pegawai yang dikecualikan TETAP WAJIB absen masuk (radius kantor tetap
-  //     berlaku) — mereka hanya dibebaskan dari kewajiban hadir FISIK di lokasi apel, bukan
-  //     dari absensi. Hanya relevan bila hari ini memang ada jadwal apel (apelLocation ada).
+  //     dipalsukan. Pegawai yang dikecualikan BOLEH absen masuk & pulang dari rumahnya
+  //     masing-masing (tidak wajib ke kantor) — lihat penentuan workMode di bawah. Hanya
+  //     relevan bila hari ini memang ada jadwal apel (apelLocation ada).
   let apelExemptionReason: ApelExemptionReason | null = null;
   if (type === "in" && apelLocation) {
     const { data: exemptionRow } = await supabase
@@ -178,6 +154,35 @@ export async function POST(request: NextRequest) {
   }
   const apelExempted = Boolean(apelExemptionReason);
 
+  // 3d. Tentukan mode kerja. WFH (bebas radius kantor SEPANJANG HARI) HANYA berlaku bila hari
+  //     Jumat & kebijakan Jumat hybrid aktif (sesuai pilihan pegawai). Pengecualian apel BUKAN
+  //     WFH — pegawai yang dikecualikan tetap berstatus WFO karena tetap wajib masuk kantor
+  //     setelah apel pagi selesai; pengecualian hanya membebaskan validasi radius kantor untuk
+  //     momen absen MASUK di jam apel pagi saja (lihat bypass geofence di bawah, bukan di sini).
+  //     Di luar Jumat hybrid, selalu WFO (wajib geofencing) berapa pun yang dikirim klien.
+  const hybridFriday = Boolean(office.friday_hybrid) && isFridayWita(serverTime);
+  let workMode: WorkMode = "wfo";
+  if (type === "in") {
+    if (hybridFriday) {
+      workMode = requestedMode;
+    }
+  } else {
+    // Absen pulang mengikuti mode absen masuk hari ini (tidak bisa ganti mode di tengah hari) —
+    // dicek dari record absen masuk yang tersimpan, bukan cuma dugaan hari ini WFH/WFO.
+    const dayStart = `${todayKey}T00:00:00+08:00`;
+    const { data: todayIn } = await supabase
+      .from("attendance")
+      .select("work_mode")
+      .eq("employee_id", userId)
+      .eq("type", "in")
+      .eq("status", "valid")
+      .gte("server_time", dayStart)
+      .order("server_time", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    workMode = todayIn?.work_mode === "wfh" ? "wfh" : "wfo";
+  }
+
   // 4. Validasi wajah (dihitung ulang di server)
   const registeredDescriptor = employee.face_descriptor as number[];
   const fDistance = faceDistance(capturedDescriptor, registeredDescriptor);
@@ -190,22 +195,21 @@ export async function POST(request: NextRequest) {
   // sebelum jam tsb, clock-out selalu ditolak, apa pun lokasi/mode kerjanya.
   const beforeWorkEnd = type === "out" && isBeforeWorkEnd(serverTime, office.work_end);
 
-  // Radius kantor HANYA diwajibkan untuk absen MASUK (mode WFO). Absen PULANG tidak pernah
-  // ditolak karena lokasi — pegawai yang audit/tugas lapangan hingga lewat jam kantor tetap
-  // bisa absen pulang; titik koordinat sebenarnya tetap direkam untuk jejak audit.
+  // Radius kantor HANYA diwajibkan untuk absen MASUK mode WFO, KECUALI pegawai yang punya
+  // pengecualian apel disetujui hari ini (apelExempted) — mereka TETAP WFO (bukan WFH), hanya
+  // dibebaskan dari validasi radius UNTUK ABSEN MASUK di jam apel pagi ini saja, karena setelah
+  // apel selesai mereka tetap wajib masuk kantor seperti biasa. Absen PULANG tidak pernah
+  // ditolak karena lokasi — pegawai yang audit/tugas lapangan hingga lewat jam kantor tetap bisa
+  // absen pulang; titik koordinat sebenarnya tetap direkam untuk jejak audit.
   if (beforeWorkEnd) {
     status = "rejected";
     rejectReason = `Absen pulang belum bisa dilakukan. Jam pulang yang ditentukan adalah pukul ${office.work_end} WITA — saat ini baru pukul ${witaTimeHHMM(
       serverTime
     )} WITA. Absen pulang hanya dapat dilakukan tepat pukul ${office.work_end} WITA atau setelahnya.`;
-  } else if (type === "in" && workMode === "wfo" && !withinGeofence) {
+  } else if (type === "in" && workMode === "wfo" && !apelExempted && !withinGeofence) {
     status = "rejected";
     if (apelCancelledToday) {
       rejectReason = `Apel pagi hari ini ditiadakan, presensi kembali dilakukan di Kantor Inspektorat. Lokasi Anda di luar radius kantor (jarak ${Math.round(
-        distance
-      )}m, maksimal ${office.radius_meters}m).`;
-    } else if (apelExempted) {
-      rejectReason = `Anda dikecualikan dari apel pagi, namun absen masuk tetap wajib dilakukan dari radius Kantor Inspektorat. Lokasi Anda di luar radius kantor (jarak ${Math.round(
         distance
       )}m, maksimal ${office.radius_meters}m).`;
     } else {
@@ -243,7 +247,11 @@ export async function POST(request: NextRequest) {
     } else if (apelLocation && withinApelGeofence) {
       locationLabel = apelLocation.name;
     } else if (apelLocation && apelExempted) {
-      locationLabel = `Hadir — dikecualikan dari apel (${APEL_EXEMPTION_REASON_LABEL[apelExemptionReason as ApelExemptionReason]})`;
+      // Dikecualikan dari apel = boleh absen dari rumah masing-masing (tidak wajib ke kantor).
+      // Tetap dibedakan di label bila kebetulan pegawai absen dari radius kantor.
+      locationLabel = withinOfficeGeofence
+        ? `Absen di Kantor Inspektorat — dikecualikan dari apel (${APEL_EXEMPTION_REASON_LABEL[apelExemptionReason as ApelExemptionReason]})`
+        : `Absen dari rumah — dikecualikan dari apel (${APEL_EXEMPTION_REASON_LABEL[apelExemptionReason as ApelExemptionReason]})`;
     } else if (apelLocation && withinOfficeGeofence) {
       locationLabel = "Absen di Kantor Inspektorat";
     } else if (apelLocation) {

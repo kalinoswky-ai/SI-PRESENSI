@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getViewerProfile } from "@/lib/admin/auth";
-import { ROLE_LABEL } from "@/types";
+import { PIMPINAN_TYPE_LABEL, ROLE_LABEL } from "@/types";
 import Link from "next/link";
 import { UserPlus, ScanFace, Pencil, FileSpreadsheet, Download } from "lucide-react";
 import DeleteEmployeeButton from "./DeleteEmployeeButton";
@@ -17,7 +17,7 @@ export default async function EmployeesPage() {
   const isAdmin = viewer?.role === "admin";
   const { data: employees } = await supabase
     .from("employees")
-    .select("id, nip, full_name, position, role, is_active, face_descriptor, face_enrollment_status")
+    .select("id, nip, full_name, position, role, pimpinan_type, is_active, face_descriptor, face_enrollment_status")
     .order("full_name");
 
   return (
@@ -79,6 +79,13 @@ export default async function EmployeesPage() {
                   >
                     {ROLE_LABEL[e.role as keyof typeof ROLE_LABEL] ?? e.role}
                   </span>
+                  {e.role === "pimpinan" && (
+                    <span className="ml-1 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-medium text-violet-800">
+                      {e.pimpinan_type
+                        ? PIMPINAN_TYPE_LABEL[e.pimpinan_type as keyof typeof PIMPINAN_TYPE_LABEL]
+                        : "Belum diatur"}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   {e.face_descriptor ? (

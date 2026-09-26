@@ -5,6 +5,7 @@ import { writeAudit } from "@/lib/admin/audit";
 
 const EDITABLE = ["full_name", "position", "role", "is_active", "nip", "phone", "apel_group"] as const;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PIMPINAN_TYPES = ["inspektur", "sekretaris"] as const;
 
 // Edit data pegawai (khusus Admin). Perubahan dicatat di audit_log.
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
@@ -24,6 +25,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if ("role" in updates && !["admin", "employee", "pimpinan"].includes(updates.role as string)) {
     return NextResponse.json({ error: "Role tidak valid." }, { status: 400 });
   }
+  if ("pimpinan_type" in body && body.pimpinan_type !== null && !PIMPINAN_TYPES.includes(body.pimpinan_type)) {
+    return NextResponse.json({ error: "Jabatan Pimpinan tidak valid." }, { status: 400 });
+  }
 
   // Email = alamat login (akun Supabase Auth), bukan sekadar kolom biasa — perlu penanganan
   // khusus agar pegawai tidak perlu dihapus & didaftarkan ulang saat gantiganti email.
@@ -38,11 +42,36 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const admin = createAdminClient();
   const { data: old } = await admin
     .from("employees")
-    .select("id, nip, full_name, position, role, is_active, phone, apel_group, email")
+    .select("id, nip, full_name, position, role, is_active, phone, apel_group, email, pimpinan_type, can_approve_leave")
     .eq("id", params.id)
     .single();
   if (!old) {
     return NextResponse.json({ error: "Pegawai tidak ditemukan." }, { status: 404 });
+  }
+
+  // Jabatan Pimpinan (Inspektur/Sekretaris) menentukan wewenang persetujuan cuti/izin/sakit
+  // secara EKSPLISIT — Inspektur otomatis can_approve_leave = true, tanpa langkah SQL Editor.
+  // Hanya diproses/divalidasi bila permintaan ini benar-benar mengubah role atau Jabatan
+  // Pimpinan — supaya edit field lain (mis. No. WhatsApp) pada akun Pimpinan lama yang belum
+  // pernah diisi Jabatan Pimpinan-nya TIDAK ikut tertolak.
+  const touchesPimpinan = "role" in updates || "pimpinan_type" in body;
+  if (touchesPimpinan) {
+    const effectiveRole = (("role" in updates ? updates.role : old.role) as string) ?? old.role;
+    if (effectiveRole === "pimpinan") {
+      const pimpinanType = "pimpinan_type" in body ? body.pimpinan_type : old.pimpinan_type;
+      if (!PIMPINAN_TYPES.includes(pimpinanType)) {
+        return NextResponse.json(
+          { error: "Pilih Jabatan Pimpinan (Inspektur atau Sekretaris) untuk akun ini." },
+          { status: 400 }
+        );
+      }
+      updates.pimpinan_type = pimpinanType;
+      updates.can_approve_leave = pimpinanType === "inspektur";
+    } else {
+      // Role diubah menjadi bukan Pimpinan -> tidak relevan lagi, bersihkan.
+      updates.pimpinan_type = null;
+      updates.can_approve_leave = false;
+    }
   }
 
   if (newEmail && newEmail !== old.email) {

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
-import type { Employee } from "@/types";
+import type { Employee, PimpinanType } from "@/types";
 import { CheckCircle2, ScanFace, Clock, XCircle } from "lucide-react";
 import DeleteEmployeeButton from "../DeleteEmployeeButton";
 
@@ -24,6 +24,7 @@ export default function EmployeeDetailPage() {
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [selfId, setSelfId] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState(false);
+  const [switchingToPimpinan, setSwitchingToPimpinan] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -165,13 +166,47 @@ export default function EmployeeDetailPage() {
             <label className="label">Role</label>
             <select
               className="input"
-              value={employee.role}
-              onChange={(e) => patch({ role: e.target.value as Employee["role"] })}
+              value={switchingToPimpinan ? "pimpinan" : employee.role}
+              onChange={(e) => {
+                const value = e.target.value as Employee["role"];
+                if (value === "pimpinan" && employee.role !== "pimpinan") {
+                  // Jabatan Pimpinan (di bawah) wajib dipilih dulu sebelum disimpan.
+                  setSwitchingToPimpinan(true);
+                  return;
+                }
+                setSwitchingToPimpinan(false);
+                patch({ role: value });
+              }}
             >
               <option value="employee">Pegawai</option>
               <option value="pimpinan">Pimpinan (lihat statistik semua pegawai)</option>
               <option value="admin">Admin</option>
             </select>
+            {(employee.role === "pimpinan" || switchingToPimpinan) && (
+              <div className="mt-2 space-y-1">
+                <label className="label">Jabatan Pimpinan</label>
+                <select
+                  className="input"
+                  value={employee.pimpinan_type ?? ""}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (!value) return;
+                    patch({ role: "pimpinan", pimpinan_type: value as PimpinanType });
+                    setSwitchingToPimpinan(false);
+                  }}
+                >
+                  <option value="">— Pilih —</option>
+                  <option value="inspektur">Inspektur (berwenang menyetujui semua pengajuan: cuti/izin/sakit/dinas)</option>
+                  <option value="sekretaris">Sekretaris (berwenang menyetujui izin &amp; sakit saja)</option>
+                </select>
+                {!employee.pimpinan_type && (
+                  <p className="mt-1 text-xs font-medium text-amber-600">
+                    Belum dipilih — akun ini belum bisa menyetujui pengajuan apa pun sampai Jabatan Pimpinan
+                    dipilih &amp; disimpan.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <div>
             <label className="label">Kelompok Apel Rabu (OPD)</label>

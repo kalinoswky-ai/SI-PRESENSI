@@ -32,6 +32,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Role tidak valid." }, { status: 400 });
   }
   const role = roleRaw as "employee" | "admin" | "pimpinan";
+
+  // Jabatan Pimpinan (Inspektur/Sekretaris) menentukan wewenang persetujuan secara eksplisit —
+  // wajib dipilih untuk role 'pimpinan'. Inspektur otomatis dapat can_approve_leave = true,
+  // tanpa perlu langkah SQL Editor terpisah lagi.
+  const pimpinanTypeRaw = (formData.get("pimpinan_type") as string) || null;
+  if (role === "pimpinan" && !["inspektur", "sekretaris"].includes(pimpinanTypeRaw ?? "")) {
+    return NextResponse.json(
+      { error: "Pilih Jabatan Pimpinan: Inspektur atau Sekretaris." },
+      { status: 400 }
+    );
+  }
+  const pimpinanType = role === "pimpinan" ? (pimpinanTypeRaw as "inspektur" | "sekretaris") : null;
+  const canApproveLeave = pimpinanType === "inspektur";
+
   const descriptorRaw = formData.get("descriptor") as string | null;
   const photo = formData.get("photo") as File | null;
 
@@ -86,6 +100,8 @@ export async function POST(request: NextRequest) {
     email,
     phone,
     role,
+    pimpinan_type: pimpinanType,
+    can_approve_leave: canApproveLeave,
     face_descriptor: faceDescriptor,
     photo_url: photoUrl,
     is_active: true,

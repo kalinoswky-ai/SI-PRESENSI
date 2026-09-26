@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import type { EmployeeRole, LeaveType } from "@/types";
+import type { EmployeeRole, LeaveType, PimpinanType } from "@/types";
 
 /**
  * Jenis pengajuan yang boleh disetujui Sekretaris & Admin utama (selain Inspektur).
@@ -58,6 +58,7 @@ export async function getViewerProfile(): Promise<{
   role: EmployeeRole;
   full_name: string;
   position: string | null;
+  pimpinan_type: PimpinanType | null;
 } | null> {
   const supabase = createClient();
   const { data: userData } = await supabase.auth.getUser();
@@ -65,7 +66,7 @@ export async function getViewerProfile(): Promise<{
 
   const { data } = await supabase
     .from("employees")
-    .select("role, full_name, position")
+    .select("role, full_name, position, pimpinan_type")
     .eq("id", userData.user.id)
     .single();
   if (!data) return null;
@@ -75,6 +76,7 @@ export async function getViewerProfile(): Promise<{
     role: data.role as EmployeeRole,
     full_name: data.full_name as string,
     position: (data.position as string | null) ?? null,
+    pimpinan_type: (data.pimpinan_type as PimpinanType | null) ?? null,
   };
 }
 
@@ -125,14 +127,19 @@ export async function getLeaveTypeApprover(
 
   const { data, error } = await supabase
     .from("employees")
-    .select("role, is_active, full_name, position")
+    .select("role, is_active, full_name, position, pimpinan_type")
     .eq("id", userData.user.id)
     .single();
   if (error || !data || !data.is_active) return null;
 
   const isAdminUtama = data.role === "admin";
+  // pimpinan_type adalah sumber kebenaran (diisi lewat dropdown Jabatan Pimpinan di Kelola
+  // Pegawai). Fallback ke teks Jabatan lama (untuk akun yang belum disimpan ulang lewat form
+  // baru) supaya tidak tiba-tiba kehilangan akses.
   const isSekretaris =
-    data.role === "pimpinan" && ((data.position as string | null) ?? "").toLowerCase().includes("sekretaris");
+    data.role === "pimpinan" &&
+    (data.pimpinan_type === "sekretaris" ||
+      (!data.pimpinan_type && ((data.position as string | null) ?? "").toLowerCase().includes("sekretaris")));
 
   if (!isAdminUtama && !isSekretaris) return null;
   return { id: userData.user.id, name: data.full_name as string, role: data.role as EmployeeRole };

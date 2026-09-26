@@ -16,6 +16,7 @@ export default function NewEmployeePage() {
     phone: "",
     password: "",
     role: "employee",
+    pimpinan_type: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -27,6 +28,10 @@ export default function NewEmployeePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (form.role === "pimpinan" && !form.pimpinan_type) {
+      setError("Pilih Jabatan Pimpinan: Inspektur atau Sekretaris.");
+      return;
+    }
     setLoading(true);
 
     const formData = new FormData();
@@ -88,18 +93,34 @@ export default function NewEmployeePage() {
             <select
               className="input"
               value={form.role}
-              onChange={(e) => update("role", e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setForm((f) => ({ ...f, role: value, pimpinan_type: value === "pimpinan" ? f.pimpinan_type : "" }));
+              }}
             >
               <option value="employee">Pegawai</option>
               <option value="pimpinan">Pimpinan (lihat statistik semua pegawai)</option>
               <option value="admin">Admin</option>
             </select>
             {form.role === "pimpinan" && (
-              <p className="mt-1 text-xs text-slate-400">
-                Contoh Jabatan: <strong>Inspektur</strong> atau <strong>Sekretaris Inspektorat</strong>. Akun ini
-                tetap absen sendiri lewat Dashboard, ditambah akses lihat Timesheets, Reports, dan status Cuti/Izin
-                seluruh pegawai lewat menu Admin (tanpa bisa menambah/mengedit/menghapus data).
-              </p>
+              <div className="mt-2 space-y-1">
+                <label className="label">Jabatan Pimpinan</label>
+                <select
+                  required
+                  className="input"
+                  value={form.pimpinan_type}
+                  onChange={(e) => update("pimpinan_type", e.target.value)}
+                >
+                  <option value="">— Pilih —</option>
+                  <option value="inspektur">Inspektur (berwenang menyetujui semua pengajuan: cuti/izin/sakit/dinas)</option>
+                  <option value="sekretaris">Sekretaris (berwenang menyetujui izin &amp; sakit saja)</option>
+                </select>
+                <p className="mt-1 text-xs text-slate-400">
+                  Akun ini tetap absen sendiri lewat Dashboard, ditambah akses lihat Timesheets, Reports, dan
+                  Time Off seluruh pegawai lewat menu Admin (tanpa bisa menambah/mengedit/menghapus data).
+                  Wewenang menyetujui pengajuan ditentukan otomatis dari pilihan Jabatan Pimpinan di atas.
+                </p>
+              </div>
             )}
           </div>
           <div>

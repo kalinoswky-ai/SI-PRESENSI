@@ -43,6 +43,22 @@ tergantung pihak ketiga.
 - Vercel Cron — penjadwal laporan otomatis harian/mingguan/bulanan
 - Deploy: GitHub → Vercel (CI/CD otomatis setiap push)
 
+## Pembaruan: Izin & Sakit Bisa Disetujui Sekretaris/Admin
+
+- **Wewenang persetujuan Izin & Sakit diperluas** — sebelumnya hanya Inspektur yang bisa
+  menyetujui/menolak semua jenis pengajuan (Cuti/Izin/Sakit/Perjalanan Dinas). Kini khusus untuk
+  **Izin** dan **Sakit**, akun **Sekretaris** (role Pimpinan berjabatan Sekretaris) dan **Admin
+  utama** juga bisa menyetujui/menolak — cukup salah satu dari Inspektur/Sekretaris/Admin yang
+  memproses.
+- **Cuti dan Perjalanan Dinas (Dalam/Luar Daerah) TIDAK berubah** — tetap hanya Inspektur yang
+  berwenang menyetujui/menolak.
+- Otorisasi diperiksa ganda: di API (`getLeaveTypeApprover`) dan di RLS Supabase
+  (`is_izin_sakit_approver`), sehingga tidak bisa dilewati dari sisi tampilan saja.
+- Jalankan `supabase/update-approval-izin-sakit-sekretaris-admin.sql` sekali di SQL Editor
+  (idempotent) sebelum memakai fitur ini. Deteksi Sekretaris otomatis dari kolom `position`
+  (mengandung kata "sekretaris") — cek hasil query VERIFIKASI di akhir file SQL tsb; bila akun
+  Sekretaris tidak terdeteksi, perbaiki `position` di data pegawainya.
+
 ## Pembaruan: Perjalanan Dinas (Dalam Daerah & Luar Daerah)
 
 - **2 jenis pengajuan baru** di menu **Cuti/Izin/Sakit** pegawai (kini "Cuti / Izin / Sakit /

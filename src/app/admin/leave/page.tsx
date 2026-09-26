@@ -12,6 +12,8 @@ const FOLDERS: { type: LeaveType; desc: string }[] = [
   { type: "cuti", desc: "Pengajuan cuti pegawai" },
   { type: "izin", desc: "Pengajuan izin pegawai" },
   { type: "sakit", desc: "Pengajuan sakit pegawai" },
+  { type: "dinas_dalam", desc: "Perjalanan dinas dalam daerah" },
+  { type: "dinas_luar", desc: "Perjalanan dinas luar daerah" },
 ];
 
 export default async function AdminLeaveFoldersPage() {
@@ -40,7 +42,7 @@ export default async function AdminLeaveFoldersPage() {
         </p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {FOLDERS.map(({ type, desc }) => {
           const s = stat(type);
           return (

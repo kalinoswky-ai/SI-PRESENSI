@@ -60,6 +60,8 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
     { label: "Cuti", value: b.cuti, color: STATUS_COLORS.cuti },
     { label: "Izin", value: b.izin, color: STATUS_COLORS.izin },
     { label: "Sakit", value: b.sakit, color: STATUS_COLORS.sakit },
+    { label: "Dinas Dalam Daerah", value: b.dinasDalam, color: STATUS_COLORS.dinasDalam },
+    { label: "Dinas Luar Daerah", value: b.dinasLuar, color: STATUS_COLORS.dinasLuar },
     { label: "Tanpa berita", value: b.tanpaBerita, color: STATUS_COLORS.tanpaBerita },
   ];
 
@@ -98,7 +100,7 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
             <p className="mt-0.5 text-sm text-slate-500">
               Statistik kehadiran seluruh pegawai Inspektorat — Anda login sebagai{" "}
               <strong>{data.positionLabel || "Pimpinan"}</strong>{" "}
-              {canApproveLeave ? "(lihat statistik; berwenang menyetujui cuti/izin/sakit)." : "(mode lihat saja)."}
+              {canApproveLeave ? "(lihat statistik; berwenang menyetujui cuti/izin/sakit/dinas)." : "(mode lihat saja)."}
             </p>
           )}
         </div>
@@ -199,7 +201,7 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
                     <Link href="/admin/leave" className="ad-row border-brand-100 bg-brand-50/80">
                       <Briefcase size={18} className="shrink-0 text-brand-600" />
                       <span className="flex-1 text-sm text-brand-900">
-                        {data.pendingLeaveCount} pengajuan cuti/izin{" "}
+                        {data.pendingLeaveCount} pengajuan cuti/izin/dinas{" "}
                         {canApproveLeave ? "menunggu persetujuan Anda" : "menunggu persetujuan Inspektur"}
                       </span>
                       <ChevronRight size={16} className="shrink-0 text-brand-500" />
@@ -248,7 +250,7 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
             <Inbox size={22} className="text-slate-400" />
             <p className="text-sm font-medium text-slate-700">Belum ada aktivitas</p>
             <p className="max-w-xs text-xs text-slate-500">
-              Absensi dan pengajuan cuti/izin pegawai akan muncul di sini begitu tercatat.
+              Absensi dan pengajuan cuti/izin/perjalanan dinas pegawai akan muncul di sini begitu tercatat.
             </p>
           </div>
         ) : (

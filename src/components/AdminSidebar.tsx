@@ -25,7 +25,7 @@ import {
 const mainLinks = [
   { href: "/admin", label: "Dashboard", sublabel: "Ringkasan", icon: LayoutDashboard },
   { href: "/admin/attendance", label: "Timesheets", sublabel: "Absensi", icon: Clock },
-  { href: "/admin/leave", label: "Time Off", sublabel: "Cuti / Izin", icon: Briefcase },
+  { href: "/admin/leave", label: "Time Off", sublabel: "Cuti / Izin / Dinas", icon: Briefcase },
   { href: "/admin/overtime", label: "Overtime", sublabel: "Lembur", icon: Timer },
   { href: "/admin/reports", label: "Reports", sublabel: "Laporan", icon: BarChart3 },
   { href: "/admin/employees", label: "People", sublabel: "Pegawai", icon: Users },

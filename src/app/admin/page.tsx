@@ -64,7 +64,7 @@ export default async function AdminOverviewPage() {
       .select("id, type, status, is_late, employee_id")
       .gte("server_time", startOfDayIso),
     supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
-    // Cuti/izin/sakit yang sudah disetujui dan mencakup hari ini.
+    // Cuti/izin/sakit/perjalanan dinas yang sudah disetujui dan mencakup hari ini.
     supabase
       .from("leave_requests")
       .select("employee_id, type")
@@ -101,12 +101,14 @@ export default async function AdminOverviewPage() {
   // --- Komposisi kehadiran hari ini (per pegawai, bukan per baris absen) ---
   const presentIds = new Set(todayIn.map((r) => r.employee_id as string));
   const lateIds = new Set(todayLate.map((r) => r.employee_id as string));
-  // Cuti/izin/sakit disetujui hari ini, dipisah per jenis. Satu pegawai dihitung sekali
+  // Cuti/izin/sakit/dinas disetujui hari ini, dipisah per jenis. Satu pegawai dihitung sekali
   // (jenis pertama yang ditemukan) dan tidak dihitung bila sudah absen masuk.
-  const leaveByType: Record<"cuti" | "izin" | "sakit", Set<string>> = {
+  const leaveByType: Record<"cuti" | "izin" | "sakit" | "dinas_dalam" | "dinas_luar", Set<string>> = {
     cuti: new Set<string>(),
     izin: new Set<string>(),
     sakit: new Set<string>(),
+    dinas_dalam: new Set<string>(),
+    dinas_luar: new Set<string>(),
   };
   const leaveCounted = new Set<string>();
   for (const r of leaveToday ?? []) {
@@ -214,6 +216,8 @@ export default async function AdminOverviewPage() {
       cuti: leaveByType.cuti.size,
       izin: leaveByType.izin.size,
       sakit: leaveByType.sakit.size,
+      dinasDalam: leaveByType.dinas_dalam.size,
+      dinasLuar: leaveByType.dinas_luar.size,
       tanpaBerita,
     },
     trend,

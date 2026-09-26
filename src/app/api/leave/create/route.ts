@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { notifyNewLeaveRequest } from "@/lib/notifications/notify";
 import type { LeaveType, Office } from "@/types";
+import { isPerjadinType } from "@/types";
+
+const VALID_TYPES = ["cuti", "izin", "sakit", "dinas_dalam", "dinas_luar"];
 
 export async function POST(request: NextRequest) {
   const supabase = createClient();
@@ -12,18 +15,27 @@ export async function POST(request: NextRequest) {
   const userId = userData.user.id;
 
   const formData = await request.formData();
-  const type = formData.get("type") as string; // 'cuti' | 'izin' | 'sakit'
+  const type = formData.get("type") as string; // 'cuti' | 'izin' | 'sakit' | 'dinas_dalam' | 'dinas_luar'
   const startDate = formData.get("start_date") as string;
   const endDate = formData.get("end_date") as string;
   const reason = (formData.get("reason") as string)?.trim();
+  const destination = (formData.get("destination") as string | null)?.trim() || null;
+  const letterNumber = (formData.get("letter_number") as string | null)?.trim() || null;
   const attachment = formData.get("attachment") as File | null;
 
-  if (!["cuti", "izin", "sakit"].includes(type) || !startDate || !endDate || !reason) {
+  if (!VALID_TYPES.includes(type) || !startDate || !endDate || !reason) {
     return NextResponse.json({ error: "Data pengajuan tidak lengkap." }, { status: 400 });
   }
   if (endDate < startDate) {
     return NextResponse.json(
       { error: "Tanggal selesai tidak boleh sebelum tanggal mulai." },
+      { status: 400 }
+    );
+  }
+  // Perjalanan dinas (dalam/luar daerah) wajib mencantumkan tujuan/lokasi penugasan.
+  if (isPerjadinType(type as LeaveType) && !destination) {
+    return NextResponse.json(
+      { error: "Mohon isi tujuan/lokasi penugasan perjalanan dinas." },
       { status: 400 }
     );
   }
@@ -50,6 +62,8 @@ export async function POST(request: NextRequest) {
       start_date: startDate,
       end_date: endDate,
       reason,
+      destination,
+      letter_number: letterNumber,
       attachment_url: attachmentUrl,
       status: "pending",
     })

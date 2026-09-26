@@ -25,7 +25,7 @@ function formatDate(d: string) {
   );
 }
 
-const VALID_TYPES: LeaveType[] = ["cuti", "izin", "sakit"];
+const VALID_TYPES: LeaveType[] = ["cuti", "izin", "sakit", "dinas_dalam", "dinas_luar"];
 
 export default async function AdminLeaveTypePage({
   params,
@@ -141,6 +141,12 @@ export default async function AdminLeaveTypePage({
                     {typeLabel} · {formatDate(r.start_date)}
                     {r.end_date !== r.start_date ? ` s/d ${formatDate(r.end_date)}` : ""}
                   </p>
+                  {r.destination && (
+                    <p className="mt-1 text-sm text-slate-600">
+                      Tujuan: <span className="font-medium">{r.destination}</span>
+                      {r.letter_number ? ` · No. Surat Tugas: ${r.letter_number}` : ""}
+                    </p>
+                  )}
                   <p className="mt-1 text-sm text-slate-600">{r.reason}</p>
                   {r.attachment_url && (
                     <a

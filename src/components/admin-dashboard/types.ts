@@ -5,11 +5,13 @@ export interface StatusBreakdown {
   eligible: number;
   onTime: number;
   late: number;
-  /** Cuti / izin / sakit yang sudah disetujui dan berlaku hari ini (dan belum absen), dipisah per jenis. */
+  /** Cuti / izin / sakit / perjalanan dinas yang sudah disetujui dan berlaku hari ini (dan belum absen), dipisah per jenis. */
   cuti: number;
   izin: number;
   sakit: number;
-  /** Tanpa berita: wajib absen, belum absen masuk, dan tidak punya cuti/izin/sakit disetujui hari ini. */
+  dinasDalam: number;
+  dinasLuar: number;
+  /** Tanpa berita: wajib absen, belum absen masuk, dan tidak punya cuti/izin/sakit/dinas disetujui hari ini. */
   tanpaBerita: number;
 }
 
@@ -34,7 +36,7 @@ export interface ActivityItem {
 export interface AdminDashboardData {
   adminName: string | null;
   isPimpinan: boolean;
-  /** true hanya untuk Inspektur (penyetuju cuti/izin/sakit). Admin & Sekretaris = false. */
+  /** true hanya untuk Inspektur (penyetuju cuti/izin/sakit/perjalanan dinas). Admin & Sekretaris = false. */
   canApproveLeave: boolean;
   positionLabel: string | null;
   todayLabel: string;

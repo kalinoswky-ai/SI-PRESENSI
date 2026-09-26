@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatWita } from "@/lib/geo";
 import type { LeaveRequest, LeaveType } from "@/types";
-import { LEAVE_TYPE_LABEL } from "@/types";
+import { LEAVE_TYPE_LABEL, isPerjadinType } from "@/types";
 import { CalendarPlus, Clock3, CheckCircle2, XCircle, Paperclip } from "lucide-react";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -29,7 +29,10 @@ export default function LeavePage() {
     start_date: "",
     end_date: "",
     reason: "",
+    destination: "",
+    letter_number: "",
   });
+  const isPerjadin = isPerjadinType(form.type);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +66,10 @@ export default function LeavePage() {
       setError("Mohon lengkapi semua data pengajuan.");
       return;
     }
+    if (isPerjadin && !form.destination.trim()) {
+      setError("Mohon isi tujuan/lokasi penugasan.");
+      return;
+    }
 
     setSubmitting(true);
     const formData = new FormData();
@@ -78,7 +85,7 @@ export default function LeavePage() {
         return;
       }
       setShowForm(false);
-      setForm({ type: "izin", start_date: "", end_date: "", reason: "" });
+      setForm({ type: "izin", start_date: "", end_date: "", reason: "", destination: "", letter_number: "" });
       setAttachment(null);
       if (json.attachmentFailed) {
         window.alert("Pengajuan terkirim, tetapi lampiran gagal diunggah. Hubungi Admin atau ajukan ulang dengan lampiran.");
@@ -94,7 +101,7 @@ export default function LeavePage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-slate-900">Cuti / Izin / Sakit</h1>
+        <h1 className="text-lg font-bold text-slate-900">Cuti / Izin / Sakit / Perjalanan Dinas</h1>
         <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
           <CalendarPlus size={18} />
           {showForm ? "Tutup Form" : "Ajukan Baru"}
@@ -114,6 +121,8 @@ export default function LeavePage() {
                 <option value="izin">Izin</option>
                 <option value="sakit">Sakit</option>
                 <option value="cuti">Cuti</option>
+                <option value="dinas_dalam">Perjalanan Dinas Dalam Daerah</option>
+                <option value="dinas_luar">Perjalanan Dinas Luar Daerah</option>
               </select>
             </div>
             <div>
@@ -138,20 +147,56 @@ export default function LeavePage() {
             </div>
           </div>
 
+          {isPerjadin && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="label">Tujuan / Lokasi Penugasan</label>
+                <input
+                  required
+                  type="text"
+                  className="input"
+                  value={form.destination}
+                  onChange={(e) => update("destination", e.target.value)}
+                  placeholder={
+                    form.type === "dinas_luar"
+                      ? "mis. Kota Kupang / Jakarta"
+                      : "mis. Kecamatan Lamboya, Kab. Sumba Barat"
+                  }
+                />
+              </div>
+              <div>
+                <label className="label">Nomor Surat Tugas (opsional)</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={form.letter_number}
+                  onChange={(e) => update("letter_number", e.target.value)}
+                  placeholder="mis. 094/123/SPT/2026"
+                />
+              </div>
+            </div>
+          )}
+
           <div>
-            <label className="label">Alasan</label>
+            <label className="label">{isPerjadin ? "Uraian Tugas" : "Alasan"}</label>
             <textarea
               required
               className="input"
               rows={3}
               value={form.reason}
               onChange={(e) => update("reason", e.target.value)}
-              placeholder="Jelaskan alasan cuti/izin/sakit secara singkat"
+              placeholder={
+                isPerjadin
+                  ? "Jelaskan uraian/keperluan tugas dinas secara singkat"
+                  : "Jelaskan alasan cuti/izin/sakit secara singkat"
+              }
             />
           </div>
 
           <div>
-            <label className="label">Lampiran (opsional — mis. surat dokter)</label>
+            <label className="label">
+              {isPerjadin ? "Lampiran (opsional — mis. scan Surat Tugas/SPT)" : "Lampiran (opsional — mis. surat dokter)"}
+            </label>
             <input
               type="file"
               accept="image/*,application/pdf"
@@ -171,7 +216,7 @@ export default function LeavePage() {
       {loading ? (
         <p className="text-center text-sm text-slate-500">Memuat...</p>
       ) : records.length === 0 ? (
-        <p className="text-sm text-slate-500">Belum ada pengajuan cuti/izin.</p>
+        <p className="text-sm text-slate-500">Belum ada pengajuan cuti/izin/perjalanan dinas.</p>
       ) : (
         <div className="space-y-2">
           {records.map((r) => (
@@ -181,6 +226,12 @@ export default function LeavePage() {
                   <p className="font-medium text-slate-800">
                     {LEAVE_TYPE_LABEL[r.type]} · {r.start_date} s/d {r.end_date}
                   </p>
+                  {r.destination && (
+                    <p className="text-sm text-slate-600">
+                      Tujuan: <span className="font-medium">{r.destination}</span>
+                      {r.letter_number ? ` · No. Surat: ${r.letter_number}` : ""}
+                    </p>
+                  )}
                   <p className="text-sm text-slate-500">{r.reason}</p>
                 </div>
                 <span className={`shrink-0 rounded px-2 py-1 text-xs font-medium ${STATUS_STYLE[r.status]}`}>

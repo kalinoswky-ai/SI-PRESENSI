@@ -110,8 +110,17 @@ export interface ApelLocation {
   created_at: string;
 }
 
-export type LeaveType = "cuti" | "izin" | "sakit";
+// "dinas_dalam" = Perjalanan Dinas Dalam Daerah, "dinas_luar" = Perjalanan Dinas Luar Daerah.
+// Keduanya memakai tabel & alur yang sama dengan Cuti/Izin/Sakit (pengajuan → persetujuan
+// Inspektur → otomatis membebaskan pegawai dari absensi masuk/pulang pada tanggal terkait).
+export type LeaveType = "cuti" | "izin" | "sakit" | "dinas_dalam" | "dinas_luar";
 export type LeaveStatus = "pending" | "approved" | "rejected";
+
+/** Jenis yang tergolong perjalanan dinas (dipakai utk menampilkan field tujuan/no. SPT). */
+export const PERJADIN_TYPES: LeaveType[] = ["dinas_dalam", "dinas_luar"];
+export function isPerjadinType(type: LeaveType): boolean {
+  return PERJADIN_TYPES.includes(type);
+}
 
 export interface LeaveRequest {
   id: string;
@@ -126,6 +135,9 @@ export interface LeaveRequest {
   reviewed_at: string | null;
   review_note: string | null;
   created_at: string;
+  // Khusus type = dinas_dalam / dinas_luar (null utk cuti/izin/sakit).
+  destination?: string | null; // tujuan/lokasi penugasan
+  letter_number?: string | null; // nomor Surat Perintah Tugas (SPT), opsional
   employees?: Pick<Employee, "full_name" | "nip" | "position">;
 }
 
@@ -133,6 +145,17 @@ export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
   cuti: "Cuti",
   izin: "Izin",
   sakit: "Sakit",
+  dinas_dalam: "Perjalanan Dinas Dalam Daerah",
+  dinas_luar: "Perjalanan Dinas Luar Daerah",
+};
+
+/** Label ringkas — dipakai di tempat sempit (legenda grafik, badge, dsb). */
+export const LEAVE_TYPE_SHORT_LABEL: Record<LeaveType, string> = {
+  cuti: "Cuti",
+  izin: "Izin",
+  sakit: "Sakit",
+  dinas_dalam: "Dinas Dalam Daerah",
+  dinas_luar: "Dinas Luar Daerah",
 };
 
 // Pengajuan lembur pegawai. Status memakai LeaveStatus yang sama (pending/approved/rejected)

@@ -6,6 +6,8 @@ export const STATUS_COLORS = {
   cuti: "#2563eb",
   izin: "#8b5cf6",
   sakit: "#f43f5e",
+  dinasDalam: "#0891b2",
+  dinasLuar: "#7c3aed",
   tanpaBerita: "#94a3b8",
 } as const;
 
@@ -13,13 +15,16 @@ export const STATUS_COLORS = {
 export function AttendanceDonut({ data }: { data: StatusBreakdown }) {
   const r = 54;
   const c = 2 * Math.PI * r;
-  const total = data.onTime + data.late + data.cuti + data.izin + data.sakit + data.tanpaBerita;
+  const total =
+    data.onTime + data.late + data.cuti + data.izin + data.sakit + data.dinasDalam + data.dinasLuar + data.tanpaBerita;
   const segments = [
     { key: "onTime", value: data.onTime, color: STATUS_COLORS.onTime },
     { key: "late", value: data.late, color: STATUS_COLORS.late },
     { key: "cuti", value: data.cuti, color: STATUS_COLORS.cuti },
     { key: "izin", value: data.izin, color: STATUS_COLORS.izin },
     { key: "sakit", value: data.sakit, color: STATUS_COLORS.sakit },
+    { key: "dinasDalam", value: data.dinasDalam, color: STATUS_COLORS.dinasDalam },
+    { key: "dinasLuar", value: data.dinasLuar, color: STATUS_COLORS.dinasLuar },
     { key: "tanpaBerita", value: data.tanpaBerita, color: STATUS_COLORS.tanpaBerita },
   ];
 

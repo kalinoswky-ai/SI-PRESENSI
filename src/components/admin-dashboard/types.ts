@@ -38,6 +38,8 @@ export interface AdminDashboardData {
   isPimpinan: boolean;
   /** true hanya untuk Inspektur (penyetuju cuti/izin/sakit/perjalanan dinas). Admin & Sekretaris = false. */
   canApproveLeave: boolean;
+  /** true untuk Inspektur, Sekretaris, ATAU Admin utama (penyetuju izin/sakit saja). */
+  canApproveIzinSakit: boolean;
   positionLabel: string | null;
   todayLabel: string;
   totalEmployees: number;

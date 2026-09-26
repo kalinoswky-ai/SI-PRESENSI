@@ -1,6 +1,12 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import type { EmployeeRole } from "@/types";
+import type { EmployeeRole, LeaveType } from "@/types";
+
+/**
+ * Jenis pengajuan yang boleh disetujui Sekretaris & Admin utama (selain Inspektur).
+ * Cuti, Dinas Dalam, dan Dinas Luar TETAP wewenang khusus Inspektur — lihat getLeaveApprover.
+ */
+const SEKRETARIS_ADMIN_LEAVE_TYPES: LeaveType[] = ["izin", "sakit"];
 
 /**
  * Memastikan pemanggil adalah Admin yang login & aktif. Dipakai semua API edit/hapus data.
@@ -92,4 +98,42 @@ export async function getLeaveApprover(): Promise<{ id: string; name: string } |
   if (error || !data) return null;
   if (data.role !== "pimpinan" || !data.is_active || data.can_approve_leave !== true) return null;
   return { id: userData.user.id, name: data.full_name as string };
+}
+
+/**
+ * Penyetuju pengajuan UNTUK JENIS TERTENTU (`type`):
+ *  - Izin & Sakit: boleh Inspektur (getLeaveApprover), ATAU Sekretaris (role 'pimpinan',
+ *    jabatan mengandung "sekretaris"), ATAU Admin utama (role 'admin') — masing-masing
+ *    harus akun aktif.
+ *  - Cuti, Dinas Dalam, Dinas Luar: TETAP hanya Inspektur (sama seperti getLeaveApprover).
+ * Dipakai di API PATCH /api/leave/[id] dan tampilan folder Time Off, berpasangan dengan
+ * RLS is_izin_sakit_approver() (lihat supabase/update-approval-izin-sakit-sekretaris-admin.sql).
+ * Gagal-tertutup: error / role tak dikenal -> null (tidak berwenang).
+ */
+export async function getLeaveTypeApprover(
+  type: LeaveType
+): Promise<{ id: string; name: string; role: EmployeeRole } | null> {
+  // Inspektur selalu berwenang, untuk semua jenis pengajuan.
+  const inspektur = await getLeaveApprover();
+  if (inspektur) return { id: inspektur.id, name: inspektur.name, role: "pimpinan" };
+
+  if (!SEKRETARIS_ADMIN_LEAVE_TYPES.includes(type)) return null;
+
+  const supabase = createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return null;
+
+  const { data, error } = await supabase
+    .from("employees")
+    .select("role, is_active, full_name, position")
+    .eq("id", userData.user.id)
+    .single();
+  if (error || !data || !data.is_active) return null;
+
+  const isAdminUtama = data.role === "admin";
+  const isSekretaris =
+    data.role === "pimpinan" && ((data.position as string | null) ?? "").toLowerCase().includes("sekretaris");
+
+  if (!isAdminUtama && !isSekretaris) return null;
+  return { id: userData.user.id, name: data.full_name as string, role: data.role as EmployeeRole };
 }

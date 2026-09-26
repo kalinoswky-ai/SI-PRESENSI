@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getLeaveApprover } from "@/lib/admin/auth";
+import { getLeaveTypeApprover } from "@/lib/admin/auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { LEAVE_TYPE_LABEL } from "@/types";
@@ -39,8 +39,10 @@ export default async function AdminLeaveTypePage({
   const typeLabel = LEAVE_TYPE_LABEL[type];
   const supabase = createClient();
   const status = TABS.some((t) => t.key === searchParams.status) ? searchParams.status! : "pending";
-  // Hanya Inspektur yang dapat menyetujui/menolak; Admin & Sekretaris mode lihat saja.
-  const canApprove = (await getLeaveApprover()) !== null;
+  // Izin & Sakit: Inspektur, Sekretaris, ATAU Admin utama dapat menyetujui/menolak.
+  // Cuti, Dinas Dalam, Dinas Luar: TETAP hanya Inspektur.
+  const canApprove = (await getLeaveTypeApprover(type)) !== null;
+  const isIzinSakit = type === "izin" || type === "sakit";
 
   // ROOT CAUSE bug "Time Off kosong": tabel leave_requests punya DUA foreign key ke employees
   // (employee_id = pemohon, reviewed_by = admin yang memproses). Query lama memakai embed
@@ -84,7 +86,11 @@ export default async function AdminLeaveTypePage({
         </Link>
         <h1 className="mt-1 text-lg font-bold text-slate-900">Pengajuan {typeLabel}</h1>
         {!canApprove && (
-          <p className="text-sm text-slate-500">Mode lihat saja — persetujuan/penolakan hanya dilakukan oleh Inspektur.</p>
+          <p className="text-sm text-slate-500">
+            {isIzinSakit
+              ? "Mode lihat saja — persetujuan/penolakan dilakukan oleh Inspektur, Sekretaris, atau Admin."
+              : "Mode lihat saja — persetujuan/penolakan hanya dilakukan oleh Inspektur."}
+          </p>
         )}
       </div>
 
@@ -172,7 +178,9 @@ export default async function AdminLeaveTypePage({
 
               {r.status === "pending" && canApprove && <LeaveActions id={r.id} />}
               {r.status === "pending" && !canApprove && (
-                <p className="text-xs font-medium text-amber-600">Menunggu persetujuan Inspektur.</p>
+                <p className="text-xs font-medium text-amber-600">
+                  {isIzinSakit ? "Menunggu persetujuan Inspektur/Sekretaris/Admin." : "Menunggu persetujuan Inspektur."}
+                </p>
               )}
               {r.status !== "pending" && r.review_note && (
                 <p className="text-xs text-slate-400">Catatan: {r.review_note}</p>

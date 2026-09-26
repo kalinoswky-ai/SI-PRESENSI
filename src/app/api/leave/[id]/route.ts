@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getLeaveApprover } from "@/lib/admin/auth";
+import { getLeaveTypeApprover } from "@/lib/admin/auth";
+import type { LeaveType } from "@/types";
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -9,13 +10,26 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ error: "Belum login." }, { status: 401 });
   }
 
-  // Hanya Inspektur (pimpinan bertanda can_approve_leave) yang boleh memutuskan. Admin hanya melihat.
-  const approver = await getLeaveApprover();
+  // Ambil dulu jenis pengajuan (izin/sakit boleh Sekretaris & Admin utama; cuti/dinas tetap
+  // hanya Inspektur) — wewenang diperiksa PER JENIS, bukan generik.
+  const { data: existing, error: existingError } = await supabase
+    .from("leave_requests")
+    .select("type")
+    .eq("id", params.id)
+    .single();
+
+  if (existingError || !existing) {
+    return NextResponse.json({ error: "Pengajuan tidak ditemukan." }, { status: 404 });
+  }
+  const leaveType = existing.type as LeaveType;
+
+  const approver = await getLeaveTypeApprover(leaveType);
   if (!approver) {
-    return NextResponse.json(
-      { error: "Hanya Inspektur yang berwenang menyetujui/menolak pengajuan cuti, izin, dan sakit." },
-      { status: 403 }
-    );
+    const message =
+      leaveType === "izin" || leaveType === "sakit"
+        ? "Hanya Inspektur, Sekretaris, atau Admin yang berwenang menyetujui/menolak pengajuan izin dan sakit."
+        : "Hanya Inspektur yang berwenang menyetujui/menolak pengajuan cuti dan perjalanan dinas.";
+    return NextResponse.json({ error: message }, { status: 403 });
   }
 
   const body = await request.json();

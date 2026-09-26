@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getViewerProfile, getLeaveApprover } from "@/lib/admin/auth";
+import { getViewerProfile, getLeaveApprover, getLeaveTypeApprover } from "@/lib/admin/auth";
 import { witaDateKey } from "@/lib/geo";
 import { fetchAllRows } from "@/lib/supabase/fetchAll";
 import { LEAVE_TYPE_LABEL, type LeaveStatus, type LeaveType } from "@/types";
@@ -32,6 +32,8 @@ export default async function AdminOverviewPage() {
   const viewer = await getViewerProfile();
   const isPimpinan = viewer?.role === "pimpinan";
   const canApproveLeave = (await getLeaveApprover()) !== null;
+  // Izin & Sakit berlaku juga untuk Sekretaris & Admin utama, jadi cek terpisah dari "canApproveLeave" di atas.
+  const canApproveIzinSakit = canApproveLeave || (await getLeaveTypeApprover("izin")) !== null;
 
   // Awal hari menurut WITA (server Vercel berjalan di UTC — tanpa ini absen pukul 07.00–08.00 WITA
   // tidak terhitung pada kartu "Absen Masuk Hari Ini").
@@ -201,6 +203,7 @@ export default async function AdminOverviewPage() {
     adminName: viewer?.full_name ?? null,
     isPimpinan,
     canApproveLeave,
+    canApproveIzinSakit,
     positionLabel: viewer?.position ?? null,
     todayLabel: TODAY_FMT.format(now),
     totalEmployees: totalEmployees ?? 0,

@@ -44,7 +44,7 @@ const TONE_BADGE: Record<ActivityTone, string> = {
  * komponen ini hanya menyajikan. Seluruh gaya di-scope oleh kelas `.admin-dashboard`.
  */
 export default function AdminDashboardView({ data }: { data: AdminDashboardData }) {
-  const { isPimpinan, canApproveLeave, breakdown: b } = data;
+  const { isPimpinan, canApproveLeave, canApproveIzinSakit, breakdown: b } = data;
   const trendHasData = data.trend.some((d) => d.onTime + d.late > 0);
 
   const stats = [
@@ -74,8 +74,12 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
     { href: "/admin/reports", label: "Reports", hint: "Rekap kehadiran & ekspor BKPSDM", icon: BarChart3 },
     {
       href: "/admin/leave",
-      label: canApproveLeave ? "Setujui Cuti/Izin" : "Cuti/Izin Pegawai",
-      hint: canApproveLeave ? "Setujui atau tolak pengajuan" : "Lihat status pengajuan (persetujuan oleh Inspektur)",
+      label: canApproveLeave ? "Setujui Cuti/Izin" : canApproveIzinSakit ? "Setujui Izin/Sakit" : "Cuti/Izin Pegawai",
+      hint: canApproveLeave
+        ? "Setujui atau tolak pengajuan"
+        : canApproveIzinSakit
+        ? "Setujui/tolak izin & sakit — cuti/dinas tetap oleh Inspektur"
+        : "Lihat status pengajuan (persetujuan oleh Inspektur)",
       icon: Briefcase,
     },
     ...(!isPimpinan
@@ -100,7 +104,11 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
             <p className="mt-0.5 text-sm text-slate-500">
               Statistik kehadiran seluruh pegawai Inspektorat — Anda login sebagai{" "}
               <strong>{data.positionLabel || "Pimpinan"}</strong>{" "}
-              {canApproveLeave ? "(lihat statistik; berwenang menyetujui cuti/izin/sakit/dinas)." : "(mode lihat saja)."}
+              {canApproveLeave
+                ? "(lihat statistik; berwenang menyetujui cuti/izin/sakit/dinas)."
+                : canApproveIzinSakit
+                ? "(lihat statistik; berwenang menyetujui izin/sakit — cuti/dinas tetap oleh Inspektur)."
+                : "(mode lihat saja)."}
             </p>
           )}
         </div>
@@ -202,7 +210,11 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
                       <Briefcase size={18} className="shrink-0 text-brand-600" />
                       <span className="flex-1 text-sm text-brand-900">
                         {data.pendingLeaveCount} pengajuan cuti/izin/dinas{" "}
-                        {canApproveLeave ? "menunggu persetujuan Anda" : "menunggu persetujuan Inspektur"}
+                        {canApproveLeave
+                          ? "menunggu persetujuan Anda"
+                          : canApproveIzinSakit
+                          ? "menunggu persetujuan (izin/sakit oleh Anda; cuti/dinas oleh Inspektur)"
+                          : "menunggu persetujuan Inspektur"}
                       </span>
                       <ChevronRight size={16} className="shrink-0 text-brand-500" />
                     </Link>

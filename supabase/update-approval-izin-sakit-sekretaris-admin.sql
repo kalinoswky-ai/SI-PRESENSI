@@ -2,6 +2,11 @@
 -- MIGRASI: Izin & Sakit juga bisa disetujui Sekretaris dan Admin utama
 -- Jalankan sekali di Supabase SQL Editor (aman dijalankan berulang).
 --
+-- CATATAN: fungsi is_izin_sakit_extra_approver() di file ini kemudian DIPERBARUI oleh
+-- supabase/update-pimpinan-inspektur-sekretaris.sql (deteksi Sekretaris via kolom
+-- pimpinan_type, bukan lagi menebak dari teks Jabatan). Jalankan file ini DULU, baru file
+-- tsb setelahnya.
+--
 -- Aturan baru:
 --   * Izin & Sakit: boleh disetujui/ditolak oleh Inspektur (can_approve_leave = true,
 --     seperti sebelumnya), ATAU Sekretaris (role 'pimpinan', jabatan mengandung kata

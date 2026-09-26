@@ -43,6 +43,32 @@ tergantung pihak ketiga.
 - Vercel Cron — penjadwal laporan otomatis harian/mingguan/bulanan
 - Deploy: GitHub → Vercel (CI/CD otomatis setiap push)
 
+## Pembaruan: Pimpinan Dipecah Jadi Inspektur / Sekretaris (Otorisasi Langsung Aktif)
+
+- **Menu Tambah Pegawai & Kelola Pegawai** kini punya dropdown baru **Jabatan Pimpinan** yang
+  muncul begitu Role dipilih/sudah **Pimpinan**, dengan 2 pilihan tegas:
+  - **Inspektur** — otomatis mendapat wewenang penuh menyetujui **semua** jenis pengajuan
+    (Cuti, Izin, Sakit, Dinas Dalam, Dinas Luar). **Tidak perlu lagi buka SQL Editor** — begitu
+    dipilih & disimpan, akun langsung bisa memproses pengajuan di menu Time Off.
+  - **Sekretaris** — tetap berwenang menyetujui **Izin & Sakit** saja (sama seperti Admin
+    utama); Cuti/Dinas tetap milik Inspektur.
+- Ini memperbaiki masalah akun Pimpinan berjabatan Inspektur yang tidak langsung bisa membuka
+  pengajuan di Time Off — sebelumnya wewenang itu (`can_approve_leave`) hanya bisa diaktifkan
+  lewat query SQL manual, terpisah dari proses tambah/edit pegawai.
+- Di halaman **Data Pegawai**, kolom Role kini menampilkan label tambahan "Inspektur" /
+  "Sekretaris" / "Belum diatur" di sebelah badge "Pimpinan", agar langsung terlihat siapa
+  berwenang menyetujui apa.
+- Akun Pimpinan yang dibuat lewat **Import Excel** tetap masuk sebagai Pimpinan tanpa Jabatan
+  Pimpinan (default belum berwenang menyetujui apa pun) — buka **Kelola Pegawai** akun tsb
+  sekali untuk memilih Inspektur/Sekretaris.
+- Akun Pimpinan **lama** (dibuat sebelum pembaruan ini) otomatis di-backfill oleh migrasi di
+  bawah (dideteksi dari `can_approve_leave` yang sudah true, atau kata "sekretaris" di kolom
+  Jabatan). Cek hasilnya lewat query VERIFIKASI di akhir file SQL tsb; kalau ada yang belum
+  terdeteksi otomatis, tinggal buka Kelola Pegawai akun tsb dan pilih Jabatan Pimpinan-nya.
+- Jalankan `supabase/update-pimpinan-inspektur-sekretaris.sql` sekali di SQL Editor (idempotent)
+  sebelum memakai fitur ini. Baca query VERIFIKASI di akhir file itu untuk memastikan akun
+  Inspektur/Sekretaris yang sudah ada sekarang bertanda benar.
+
 ## Pembaruan: Izin & Sakit Bisa Disetujui Sekretaris/Admin
 
 - **Wewenang persetujuan Izin & Sakit diperluas** — sebelumnya hanya Inspektur yang bisa

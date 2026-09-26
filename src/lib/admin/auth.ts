@@ -5,8 +5,10 @@ import type { EmployeeRole, LeaveType, PimpinanType } from "@/types";
 /**
  * Jenis pengajuan yang boleh disetujui Sekretaris & Admin utama (selain Inspektur).
  * Cuti, Dinas Dalam, dan Dinas Luar TETAP wewenang khusus Inspektur — lihat getLeaveApprover.
+ * "pengecualian_apel" digabung ke kelompok ini (sama seperti izin/sakit) sesuai permintaan:
+ * pengajuan boleh disetujui pimpinan (Inspektur ATAU Sekretaris) atau Admin utama.
  */
-const SEKRETARIS_ADMIN_LEAVE_TYPES: LeaveType[] = ["izin", "sakit"];
+const SEKRETARIS_ADMIN_LEAVE_TYPES: LeaveType[] = ["izin", "sakit", "pengecualian_apel"];
 
 /**
  * Memastikan pemanggil adalah Admin yang login & aktif. Dipakai semua API edit/hapus data.

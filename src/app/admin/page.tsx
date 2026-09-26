@@ -104,8 +104,12 @@ export default async function AdminOverviewPage() {
   const presentIds = new Set(todayIn.map((r) => r.employee_id as string));
   const lateIds = new Set(todayLate.map((r) => r.employee_id as string));
   // Cuti/izin/sakit/dinas disetujui hari ini, dipisah per jenis. Satu pegawai dihitung sekali
-  // (jenis pertama yang ditemukan) dan tidak dihitung bila sudah absen masuk.
-  const leaveByType: Record<"cuti" | "izin" | "sakit" | "dinas_dalam" | "dinas_luar", Set<string>> = {
+  // (jenis pertama yang ditemukan) dan tidak dihitung bila sudah absen masuk. "pengecualian_apel"
+  // SENGAJA tidak dimasukkan di sini — pegawai ybs tetap wajib absen masuk/pulang (bukan cuti),
+  // jadi tidak dihitung sebagai "onLeave" pada rekap kehadiran hari ini.
+  const LEAVE_STAT_TYPES = ["cuti", "izin", "sakit", "dinas_dalam", "dinas_luar"] as const;
+  type LeaveStatType = (typeof LEAVE_STAT_TYPES)[number];
+  const leaveByType: Record<LeaveStatType, Set<string>> = {
     cuti: new Set<string>(),
     izin: new Set<string>(),
     sakit: new Set<string>(),
@@ -116,8 +120,8 @@ export default async function AdminOverviewPage() {
   for (const r of leaveToday ?? []) {
     const id = r.employee_id as string;
     const type = r.type as LeaveType;
-    if (presentIds.has(id) || leaveCounted.has(id) || !(type in leaveByType)) continue;
-    leaveByType[type].add(id);
+    if (presentIds.has(id) || leaveCounted.has(id) || !LEAVE_STAT_TYPES.includes(type as LeaveStatType)) continue;
+    leaveByType[type as LeaveStatType].add(id);
     leaveCounted.add(id);
   }
   const eligible = eligibleEmployees ?? 0;

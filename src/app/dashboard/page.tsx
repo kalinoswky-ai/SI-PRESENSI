@@ -9,9 +9,9 @@ import ServerClock from "@/components/ServerClock";
 import { distanceInMeters, isBeforeWorkEnd, isFridayWita, witaDateKey, witaDayOfMonth, witaIsoWeekday, witaTimeHHMM } from "@/lib/geo";
 import { formatTime } from "@/lib/employee/history";
 import RecentHistory from "@/components/employee-dashboard/RecentHistory";
-import type { ApelLocation, AttendanceRecord, Employee, LeaveRequest, Office, WorkMode } from "@/types";
-import { LEAVE_TYPE_LABEL } from "@/types";
-import { CheckCircle2, MapPin, XCircle, LogIn, LogOut, CalendarClock, ScanFace, Building2, Home } from "lucide-react";
+import type { ApelExemptionReason, ApelLocation, AttendanceRecord, Employee, LeaveRequest, Office, WorkMode } from "@/types";
+import { APEL_EXEMPTION_REASON_LABEL, LEAVE_TYPE_LABEL } from "@/types";
+import { CheckCircle2, MapPin, XCircle, LogIn, LogOut, CalendarClock, ScanFace, Building2, Home, ShieldCheck } from "lucide-react";
 
 type Step = "idle" | "locating" | "capturing" | "submitting" | "done";
 
@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [apelCandidates, setApelCandidates] = useState<ApelLocation[]>([]); // lokasi apel Senin/Rabu yang berlaku hari ini
   const [chosenApelId, setChosenApelId] = useState<string | null>(null);
   const [apelCancelledToday, setApelCancelledToday] = useState(false); // apel dijadwalkan tapi ditiadakan admin hari ini
+  const [apelExemption, setApelExemption] = useState<LeaveRequest | null>(null); // pengecualian apel yg disetujui & berlaku hari ini
 
   // Acuan jam server (bukan jam perangkat) utk mengetahui kapan jam pulang (work_end) tercapai —
   // diambil sekali saat load, lalu "dijalankan" memakai selisih waktu perangkat agar tetap akurat
@@ -63,7 +64,7 @@ export default function DashboardPage() {
       const dayOfMonth = witaDayOfMonth(serverNow);
       const todayStr = witaDateKey(serverNow);
 
-      const [{ data: emp }, { data: off }, { data: att }, { data: leave }, apelRes] = await Promise.all([
+      const [{ data: emp }, { data: off }, { data: att }, { data: leave }, { data: exemption }, apelRes] = await Promise.all([
         supabase.from("employees").select("*").eq("id", userData.user.id).single(),
         supabase.from("offices").select("*").limit(1).single(),
         supabase
@@ -76,6 +77,19 @@ export default function DashboardPage() {
           .from("leave_requests")
           .select("*")
           .eq("employee_id", userData.user.id)
+          .eq("status", "approved")
+          .neq("type", "pengecualian_apel") // jenis ini TIDAK membebaskan dari absensi — dicek terpisah di bawah
+          .lte("start_date", todayStr)
+          .gte("end_date", todayStr)
+          .limit(1)
+          .maybeSingle(),
+        // Pengecualian apel yang disetujui & berlaku hari ini (beda dari leave di atas: pegawai
+        // TETAP wajib absen masuk/pulang, hanya dibebaskan dari hadir fisik di lokasi apel).
+        supabase
+          .from("leave_requests")
+          .select("*")
+          .eq("employee_id", userData.user.id)
+          .eq("type", "pengecualian_apel")
           .eq("status", "approved")
           .lte("start_date", todayStr)
           .gte("end_date", todayStr)
@@ -91,6 +105,7 @@ export default function DashboardPage() {
       setOffice(off as Office);
       setTodayRecords((att ?? []) as AttendanceRecord[]);
       setTodayLeave((leave as LeaveRequest) ?? null);
+      setApelExemption((exemption as LeaveRequest) ?? null);
 
       // Lokasi apel yang jadwalnya cocok hari ini (mingguan Senin/Rabu ATAU bulanan tanggal
       // tetap), lalu disaring lagi: hanya yang berlaku utk semua pegawai (group_name null)
@@ -106,7 +121,15 @@ export default function DashboardPage() {
       const apelRows = relevantApelRows.filter((loc) => loc.cancelled_date !== todayStr);
       setApelCandidates(apelRows);
       setApelCancelledToday(relevantApelRows.length > 0 && apelRows.length === 0);
-      if (apelRows.length === 1) setChosenApelId(apelRows[0].id);
+      if (apelRows.length >= 1) {
+        if (exemption) {
+          // Pegawai dikecualikan dari apel: langsung arahkan ke absen Kantor seperti biasa,
+          // tidak perlu (dan tidak seharusnya) memilih lokasi apel.
+          setChosenApelId("__kantor__");
+        } else if (apelRows.length === 1) {
+          setChosenApelId(apelRows[0].id);
+        }
+      }
 
       setLoading(false);
     }
@@ -175,7 +198,7 @@ export default function DashboardPage() {
           text:
             (pendingType === "in" ? "Absen masuk berhasil dicatat" : "Absen pulang berhasil dicatat") +
             (isWfh ? " (WFH)." : ".") +
-            (pendingType === "out" && json.locationLabel ? ` Lokasi tercatat: ${json.locationLabel}.` : ""),
+            (json.locationLabel ? ` Lokasi tercatat: ${json.locationLabel}.` : ""),
         });
         setTodayRecords((prev) => [...prev, json.record]);
       }
@@ -276,6 +299,19 @@ export default function DashboardPage() {
           ))}
         </div>
       </section>
+
+      {/* Info pengecualian apel (jika berlaku hari ini) */}
+      {apelExemption && apelCandidates.length > 0 && !(validIn && validOut) && (
+        <div className="card flex items-center gap-3 border-teal-200 bg-teal-50 text-center">
+          <ShieldCheck className="shrink-0 text-teal-600" size={28} />
+          <p className="text-sm text-teal-800">
+            Anda dikecualikan dari hadir fisik apel pagi hari ini (
+            <strong>{APEL_EXEMPTION_REASON_LABEL[apelExemption.apel_exemption_reason as ApelExemptionReason]}</strong>
+            , disetujui pimpinan). Anda tetap wajib absen masuk seperti biasa dari Kantor — akan
+            tercatat <strong>Hadir</strong>.
+          </p>
+        </div>
+      )}
 
       {/* Flow absen */}
       {!employee?.face_descriptor ? (

@@ -14,6 +14,7 @@ const FOLDERS: { type: LeaveType; desc: string }[] = [
   { type: "sakit", desc: "Pengajuan sakit pegawai" },
   { type: "dinas_dalam", desc: "Perjalanan dinas dalam daerah" },
   { type: "dinas_luar", desc: "Perjalanan dinas luar daerah" },
+  { type: "pengecualian_apel", desc: "Pengecualian hadir fisik apel pagi (sakit/hamil/alasan khusus)" },
 ];
 
 export default async function AdminLeaveFoldersPage() {

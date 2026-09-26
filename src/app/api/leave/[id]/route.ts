@@ -26,8 +26,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const approver = await getLeaveTypeApprover(leaveType);
   if (!approver) {
     const message =
-      leaveType === "izin" || leaveType === "sakit"
-        ? "Hanya Inspektur, Sekretaris, atau Admin yang berwenang menyetujui/menolak pengajuan izin dan sakit."
+      leaveType === "izin" || leaveType === "sakit" || leaveType === "pengecualian_apel"
+        ? "Hanya Inspektur, Sekretaris, atau Admin yang berwenang menyetujui/menolak pengajuan ini."
         : "Hanya Inspektur yang berwenang menyetujui/menolak pengajuan cuti dan perjalanan dinas.";
     return NextResponse.json({ error: message }, { status: 403 });
   }

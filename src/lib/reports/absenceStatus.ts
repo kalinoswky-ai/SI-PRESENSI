@@ -35,6 +35,10 @@ export function buildLeaveDayMap(
   const map: LeaveDayMap = new Map();
   for (const l of leaves) {
     if (l.status !== "approved") continue;
+    // "pengecualian_apel" TIDAK membebaskan pegawai dari kewajiban absen masuk/pulang (hanya
+    // dari hadir fisik di lokasi apel) — jangan dianggap "hari cuti" di sini. Bila pegawai ybs
+    // tetap sama sekali tidak absen pada hari itu, harus tetap tercatat "Tanpa Berita".
+    if (l.type === "pengecualian_apel") continue;
     for (const day of rangeDays(l.start_date, l.end_date)) {
       map.set(leaveDayKey(l.employee_id, day), l.type);
     }

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { notifyNewLeaveRequest } from "@/lib/notifications/notify";
-import type { LeaveType, Office } from "@/types";
+import type { ApelExemptionReason, LeaveType, Office } from "@/types";
 import { isPerjadinType } from "@/types";
 
-const VALID_TYPES = ["cuti", "izin", "sakit", "dinas_dalam", "dinas_luar"];
+const VALID_TYPES = ["cuti", "izin", "sakit", "dinas_dalam", "dinas_luar", "pengecualian_apel"];
+const VALID_APEL_EXEMPTION_REASONS: ApelExemptionReason[] = ["sakit", "hamil", "alasan_khusus"];
 
 export async function POST(request: NextRequest) {
   const supabase = createClient();
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
   const reason = (formData.get("reason") as string)?.trim();
   const destination = (formData.get("destination") as string | null)?.trim() || null;
   const letterNumber = (formData.get("letter_number") as string | null)?.trim() || null;
+  const apelExemptionReasonRaw = (formData.get("apel_exemption_reason") as string | null) || null;
   const attachment = formData.get("attachment") as File | null;
 
   if (!VALID_TYPES.includes(type) || !startDate || !endDate || !reason) {
@@ -36,6 +38,15 @@ export async function POST(request: NextRequest) {
   if (isPerjadinType(type as LeaveType) && !destination) {
     return NextResponse.json(
       { error: "Mohon isi tujuan/lokasi penugasan perjalanan dinas." },
+      { status: 400 }
+    );
+  }
+  // Pengecualian apel wajib mencantumkan kategori alasan (sakit/hamil/alasan khusus).
+  const apelExemptionReason =
+    type === "pengecualian_apel" ? (apelExemptionReasonRaw as ApelExemptionReason | null) : null;
+  if (type === "pengecualian_apel" && !VALID_APEL_EXEMPTION_REASONS.includes(apelExemptionReason as ApelExemptionReason)) {
+    return NextResponse.json(
+      { error: "Mohon pilih kategori alasan pengecualian apel (Sakit/Hamil/Alasan Khusus)." },
       { status: 400 }
     );
   }
@@ -64,6 +75,7 @@ export async function POST(request: NextRequest) {
       reason,
       destination,
       letter_number: letterNumber,
+      apel_exemption_reason: apelExemptionReason,
       attachment_url: attachmentUrl,
       status: "pending",
     })

@@ -127,8 +127,24 @@ export interface ApelLocation {
 // "dinas_dalam" = Perjalanan Dinas Dalam Daerah, "dinas_luar" = Perjalanan Dinas Luar Daerah.
 // Keduanya memakai tabel & alur yang sama dengan Cuti/Izin/Sakit (pengajuan → persetujuan
 // Inspektur → otomatis membebaskan pegawai dari absensi masuk/pulang pada tanggal terkait).
-export type LeaveType = "cuti" | "izin" | "sakit" | "dinas_dalam" | "dinas_luar";
+//
+// "pengecualian_apel" BERBEDA dari jenis lain di atas: pegawai yang disetujui TETAP WAJIB
+// absen masuk/pulang seperti biasa (berketerangan Hadir) — hanya dibebaskan dari kewajiban
+// hadir FISIK di lokasi apel pagi (Senin/Rabu/tanggal 17), mis. karena sakit, hamil, atau
+// alasan khusus lain (tidak bisa berdiri lama). Karena itu jenis ini SENGAJA dikecualikan
+// dari buildLeaveDayMap (lib/reports/absenceStatus.ts) — bila pegawai ybs tetap tidak absen
+// sama sekali pada hari itu, harinya tetap tercatat "Tanpa Berita", bukan dianggap cuti.
+export type LeaveType = "cuti" | "izin" | "sakit" | "dinas_dalam" | "dinas_luar" | "pengecualian_apel";
 export type LeaveStatus = "pending" | "approved" | "rejected";
+
+/** Alasan pengecualian apel — dipilih pegawai saat mengajukan (khusus type = "pengecualian_apel"). */
+export type ApelExemptionReason = "sakit" | "hamil" | "alasan_khusus";
+
+export const APEL_EXEMPTION_REASON_LABEL: Record<ApelExemptionReason, string> = {
+  sakit: "Sakit",
+  hamil: "Hamil",
+  alasan_khusus: "Alasan Khusus Lainnya",
+};
 
 /** Jenis yang tergolong perjalanan dinas (dipakai utk menampilkan field tujuan/no. SPT). */
 export const PERJADIN_TYPES: LeaveType[] = ["dinas_dalam", "dinas_luar"];
@@ -149,9 +165,11 @@ export interface LeaveRequest {
   reviewed_at: string | null;
   review_note: string | null;
   created_at: string;
-  // Khusus type = dinas_dalam / dinas_luar (null utk cuti/izin/sakit).
+  // Khusus type = dinas_dalam / dinas_luar (null utk cuti/izin/sakit/pengecualian_apel).
   destination?: string | null; // tujuan/lokasi penugasan
   letter_number?: string | null; // nomor Surat Perintah Tugas (SPT), opsional
+  // Khusus type = pengecualian_apel (null utk jenis lain).
+  apel_exemption_reason?: ApelExemptionReason | null;
   employees?: Pick<Employee, "full_name" | "nip" | "position">;
 }
 
@@ -161,6 +179,7 @@ export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
   sakit: "Sakit",
   dinas_dalam: "Perjalanan Dinas Dalam Daerah",
   dinas_luar: "Perjalanan Dinas Luar Daerah",
+  pengecualian_apel: "Pengecualian Apel (Sakit/Hamil/Alasan Khusus)",
 };
 
 /** Label ringkas — dipakai di tempat sempit (legenda grafik, badge, dsb). */
@@ -170,6 +189,7 @@ export const LEAVE_TYPE_SHORT_LABEL: Record<LeaveType, string> = {
   sakit: "Sakit",
   dinas_dalam: "Dinas Dalam Daerah",
   dinas_luar: "Dinas Luar Daerah",
+  pengecualian_apel: "Pengecualian Apel",
 };
 
 // Pengajuan lembur pegawai. Status memakai LeaveStatus yang sama (pending/approved/rejected)

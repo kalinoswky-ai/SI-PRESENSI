@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatWita } from "@/lib/geo";
-import type { LeaveRequest, LeaveType } from "@/types";
-import { LEAVE_TYPE_LABEL, isPerjadinType } from "@/types";
+import type { ApelExemptionReason, LeaveRequest, LeaveType } from "@/types";
+import { APEL_EXEMPTION_REASON_LABEL, LEAVE_TYPE_LABEL, isPerjadinType } from "@/types";
 import { CalendarPlus, Clock3, CheckCircle2, XCircle, Paperclip } from "lucide-react";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -31,8 +31,10 @@ export default function LeavePage() {
     reason: "",
     destination: "",
     letter_number: "",
+    apel_exemption_reason: "" as ApelExemptionReason | "",
   });
   const isPerjadin = isPerjadinType(form.type);
+  const isApelExemption = form.type === "pengecualian_apel";
   const [attachment, setAttachment] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +72,10 @@ export default function LeavePage() {
       setError("Mohon isi tujuan/lokasi penugasan.");
       return;
     }
+    if (isApelExemption && !form.apel_exemption_reason) {
+      setError("Mohon pilih kategori alasan pengecualian apel.");
+      return;
+    }
 
     setSubmitting(true);
     const formData = new FormData();
@@ -85,7 +91,15 @@ export default function LeavePage() {
         return;
       }
       setShowForm(false);
-      setForm({ type: "izin", start_date: "", end_date: "", reason: "", destination: "", letter_number: "" });
+      setForm({
+        type: "izin",
+        start_date: "",
+        end_date: "",
+        reason: "",
+        destination: "",
+        letter_number: "",
+        apel_exemption_reason: "",
+      });
       setAttachment(null);
       if (json.attachmentFailed) {
         window.alert("Pengajuan terkirim, tetapi lampiran gagal diunggah. Hubungi Admin atau ajukan ulang dengan lampiran.");
@@ -101,7 +115,7 @@ export default function LeavePage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-slate-900">Cuti / Izin / Sakit / Perjalanan Dinas</h1>
+        <h1 className="text-lg font-bold text-slate-900">Cuti / Izin / Sakit / Dinas / Pengecualian Apel</h1>
         <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
           <CalendarPlus size={18} />
           {showForm ? "Tutup Form" : "Ajukan Baru"}
@@ -123,6 +137,7 @@ export default function LeavePage() {
                 <option value="cuti">Cuti</option>
                 <option value="dinas_dalam">Perjalanan Dinas Dalam Daerah</option>
                 <option value="dinas_luar">Perjalanan Dinas Luar Daerah</option>
+                <option value="pengecualian_apel">Pengecualian Apel (Sakit/Hamil/Alasan Khusus)</option>
               </select>
             </div>
             <div>
@@ -177,8 +192,33 @@ export default function LeavePage() {
             </div>
           )}
 
+          {isApelExemption && (
+            <div>
+              <p className="rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-700">
+                Pengajuan ini HANYA membebaskan Anda dari kewajiban hadir fisik di lokasi apel pagi
+                (Senin/Rabu/tanggal 17) — bukan cuti. Anda tetap wajib melakukan absen masuk & pulang
+                seperti biasa (dari Kantor) selama tanggal yang diajukan, dan wajib disetujui pimpinan
+                (Inspektur/Sekretaris) atau Admin terlebih dahulu.
+              </p>
+              <label className="label mt-3">Kategori Alasan</label>
+              <select
+                required
+                className="input"
+                value={form.apel_exemption_reason}
+                onChange={(e) => update("apel_exemption_reason", e.target.value as ApelExemptionReason)}
+              >
+                <option value="">Pilih kategori...</option>
+                {(Object.keys(APEL_EXEMPTION_REASON_LABEL) as ApelExemptionReason[]).map((r) => (
+                  <option key={r} value={r}>
+                    {APEL_EXEMPTION_REASON_LABEL[r]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div>
-            <label className="label">{isPerjadin ? "Uraian Tugas" : "Alasan"}</label>
+            <label className="label">{isPerjadin ? "Uraian Tugas" : isApelExemption ? "Penjelasan Kondisi" : "Alasan"}</label>
             <textarea
               required
               className="input"
@@ -188,14 +228,20 @@ export default function LeavePage() {
               placeholder={
                 isPerjadin
                   ? "Jelaskan uraian/keperluan tugas dinas secara singkat"
-                  : "Jelaskan alasan cuti/izin/sakit secara singkat"
+                  : isApelExemption
+                    ? "Jelaskan kondisi Anda, mis. tidak dapat berdiri lama karena sakit/hamil"
+                    : "Jelaskan alasan cuti/izin/sakit secara singkat"
               }
             />
           </div>
 
           <div>
             <label className="label">
-              {isPerjadin ? "Lampiran (opsional — mis. scan Surat Tugas/SPT)" : "Lampiran (opsional — mis. surat dokter)"}
+              {isPerjadin
+                ? "Lampiran (opsional — mis. scan Surat Tugas/SPT)"
+                : isApelExemption
+                  ? "Lampiran (opsional — mis. surat keterangan dokter/bidan)"
+                  : "Lampiran (opsional — mis. surat dokter)"}
             </label>
             <input
               type="file"
@@ -230,6 +276,14 @@ export default function LeavePage() {
                     <p className="text-sm text-slate-600">
                       Tujuan: <span className="font-medium">{r.destination}</span>
                       {r.letter_number ? ` · No. Surat: ${r.letter_number}` : ""}
+                    </p>
+                  )}
+                  {r.apel_exemption_reason && (
+                    <p className="text-sm text-slate-600">
+                      Kategori:{" "}
+                      <span className="font-medium">
+                        {APEL_EXEMPTION_REASON_LABEL[r.apel_exemption_reason as ApelExemptionReason]}
+                      </span>
                     </p>
                   )}
                   <p className="text-sm text-slate-500">{r.reason}</p>

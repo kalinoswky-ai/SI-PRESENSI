@@ -14,7 +14,8 @@ import {
   witaTimeHHMM,
 } from "@/lib/geo";
 import { notifyLateAttendance } from "@/lib/notifications/notify";
-import type { ApelLocation, Office, WorkMode } from "@/types";
+import type { ApelExemptionReason, ApelLocation, Office, WorkMode } from "@/types";
+import { APEL_EXEMPTION_REASON_LABEL } from "@/types";
 
 export async function POST(request: NextRequest) {
   const supabase = createClient();
@@ -156,6 +157,27 @@ export async function POST(request: NextRequest) {
 
   const withinGeofence = withinOfficeGeofence || withinApelGeofence;
 
+  // 3d. Pengecualian apel (sakit/hamil/alasan khusus) yang sudah disetujui pimpinan/Inspektur
+  //     utk tanggal ini — dicek ULANG di server (bukan hanya kiriman klien) agar tidak bisa
+  //     dipalsukan. Pegawai yang dikecualikan TETAP WAJIB absen masuk (radius kantor tetap
+  //     berlaku) — mereka hanya dibebaskan dari kewajiban hadir FISIK di lokasi apel, bukan
+  //     dari absensi. Hanya relevan bila hari ini memang ada jadwal apel (apelLocation ada).
+  let apelExemptionReason: ApelExemptionReason | null = null;
+  if (type === "in" && apelLocation) {
+    const { data: exemptionRow } = await supabase
+      .from("leave_requests")
+      .select("apel_exemption_reason")
+      .eq("employee_id", userId)
+      .eq("type", "pengecualian_apel")
+      .eq("status", "approved")
+      .lte("start_date", todayKey)
+      .gte("end_date", todayKey)
+      .limit(1)
+      .maybeSingle();
+    apelExemptionReason = (exemptionRow?.apel_exemption_reason as ApelExemptionReason | null) ?? null;
+  }
+  const apelExempted = Boolean(apelExemptionReason);
+
   // 4. Validasi wajah (dihitung ulang di server)
   const registeredDescriptor = employee.face_descriptor as number[];
   const fDistance = faceDistance(capturedDescriptor, registeredDescriptor);
@@ -180,6 +202,10 @@ export async function POST(request: NextRequest) {
     status = "rejected";
     if (apelCancelledToday) {
       rejectReason = `Apel pagi hari ini ditiadakan, presensi kembali dilakukan di Kantor Inspektorat. Lokasi Anda di luar radius kantor (jarak ${Math.round(
+        distance
+      )}m, maksimal ${office.radius_meters}m).`;
+    } else if (apelExempted) {
+      rejectReason = `Anda dikecualikan dari apel pagi, namun absen masuk tetap wajib dilakukan dari radius Kantor Inspektorat. Lokasi Anda di luar radius kantor (jarak ${Math.round(
         distance
       )}m, maksimal ${office.radius_meters}m).`;
     } else {
@@ -208,11 +234,22 @@ export async function POST(request: NextRequest) {
 
   // Label lokasi utk jejak audit. Absen PULANG boleh di mana saja (mis. tugas lapangan/audit yang
   // belum selesai saat jam pulang kantor) — koordinat GPS + label ini selalu tercatat.
-  let locationLabel: string | null = apelLocation?.name ?? null;
-  if (type === "in" && apelCancelledToday && !apelLocation) {
-    locationLabel = "Apel ditiadakan — absen di Kantor Inspektorat";
-  }
-  if (type === "out") {
+  // Absen MASUK: label mengikuti lokasi SEBENARNYA (bukan sekadar jadwal apel hari itu) —
+  // hanya disebut "hadir di lokasi apel" bila pegawai benar-benar berada di radiusnya.
+  let locationLabel: string | null = null;
+  if (type === "in") {
+    if (apelCancelledToday && !apelLocation) {
+      locationLabel = "Apel ditiadakan — absen di Kantor Inspektorat";
+    } else if (apelLocation && withinApelGeofence) {
+      locationLabel = apelLocation.name;
+    } else if (apelLocation && apelExempted) {
+      locationLabel = `Hadir — dikecualikan dari apel (${APEL_EXEMPTION_REASON_LABEL[apelExemptionReason as ApelExemptionReason]})`;
+    } else if (apelLocation && withinOfficeGeofence) {
+      locationLabel = "Absen di Kantor Inspektorat";
+    } else if (apelLocation) {
+      locationLabel = apelLocation.name;
+    }
+  } else {
     if (workMode === "wfh") locationLabel = "Pulang dari rumah (WFH)";
     else if (withinOfficeGeofence) locationLabel = "Pulang dari kantor";
     else locationLabel = `Pulang di luar kantor / lapangan (${formatDistance(distance)} dari kantor)`;
@@ -263,6 +300,8 @@ export async function POST(request: NextRequest) {
     workMode,
     apelLocationName: apelLocation?.name ?? null,
     apelCancelledToday,
+    apelExempted,
+    apelExemptionReason,
     locationLabel,
   });
 }

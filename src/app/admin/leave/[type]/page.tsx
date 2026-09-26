@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getLeaveTypeApprover } from "@/lib/admin/auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { LEAVE_TYPE_LABEL } from "@/types";
-import type { LeaveRequest, LeaveType } from "@/types";
+import { APEL_EXEMPTION_REASON_LABEL, LEAVE_TYPE_LABEL } from "@/types";
+import type { ApelExemptionReason, LeaveRequest, LeaveType } from "@/types";
 import LeaveActions from "../LeaveActions";
 
 // Selalu baca data terbaru dari Supabase (jangan di-cache Next.js).
@@ -25,7 +25,7 @@ function formatDate(d: string) {
   );
 }
 
-const VALID_TYPES: LeaveType[] = ["cuti", "izin", "sakit", "dinas_dalam", "dinas_luar"];
+const VALID_TYPES: LeaveType[] = ["cuti", "izin", "sakit", "dinas_dalam", "dinas_luar", "pengecualian_apel"];
 
 export default async function AdminLeaveTypePage({
   params,
@@ -42,7 +42,7 @@ export default async function AdminLeaveTypePage({
   // Izin & Sakit: Inspektur, Sekretaris, ATAU Admin utama dapat menyetujui/menolak.
   // Cuti, Dinas Dalam, Dinas Luar: TETAP hanya Inspektur.
   const canApprove = (await getLeaveTypeApprover(type)) !== null;
-  const isIzinSakit = type === "izin" || type === "sakit";
+  const isIzinSakit = type === "izin" || type === "sakit" || type === "pengecualian_apel";
 
   // ROOT CAUSE bug "Time Off kosong": tabel leave_requests punya DUA foreign key ke employees
   // (employee_id = pemohon, reviewed_by = admin yang memproses). Query lama memakai embed
@@ -151,6 +151,14 @@ export default async function AdminLeaveTypePage({
                     <p className="mt-1 text-sm text-slate-600">
                       Tujuan: <span className="font-medium">{r.destination}</span>
                       {r.letter_number ? ` · No. Surat Tugas: ${r.letter_number}` : ""}
+                    </p>
+                  )}
+                  {r.apel_exemption_reason && (
+                    <p className="mt-1 text-sm text-slate-600">
+                      Kategori:{" "}
+                      <span className="font-medium">
+                        {APEL_EXEMPTION_REASON_LABEL[r.apel_exemption_reason as ApelExemptionReason]}
+                      </span>
                     </p>
                   )}
                   <p className="mt-1 text-sm text-slate-600">{r.reason}</p>

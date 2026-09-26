@@ -43,7 +43,23 @@ tergantung pihak ketiga.
 - Vercel Cron — penjadwal laporan otomatis harian/mingguan/bulanan
 - Deploy: GitHub → Vercel (CI/CD otomatis setiap push)
 
-## Pembaruan: Time Off & Absen Pulang
+## Pembaruan: Perjalanan Dinas (Dalam Daerah & Luar Daerah)
+
+- **2 jenis pengajuan baru** di menu **Cuti/Izin/Sakit** pegawai (kini "Cuti / Izin / Sakit /
+  Perjalanan Dinas"): **Perjalanan Dinas Dalam Daerah** dan **Perjalanan Dinas Luar Daerah**.
+  Memakai alur & tabel yang sama seperti Cuti/Izin/Sakit — pegawai mengajukan lengkap dengan
+  **tujuan/lokasi penugasan** (wajib) dan **nomor Surat Perintah Tugas/SPT** (opsional, bisa juga
+  dilampirkan scan SPT-nya) → Inspektur menyetujui/menolak di **Admin → Time Off**.
+- **Otomatis bebas absen** — begitu pengajuan disetujui, pegawai TIDAK PERLU absen masuk/pulang
+  selama rentang tanggal penugasan (persis seperti cuti/izin/sakit): tombol absen di Dashboard
+  diganti info "sedang Perjalanan Dinas ...", dan pada Timesheets/Reports/Export Excel tanggal
+  tsb otomatis berlabel jenis perjalanan dinasnya (bukan "Tanpa Berita").
+- **Dashboard Admin** — grafik komposisi kehadiran & legenda kini juga memisahkan jumlah pegawai
+  yang sedang Dinas Dalam Daerah / Dinas Luar Daerah hari ini.
+- Jalankan `supabase/update-perjalanan-dinas.sql` sekali di SQL Editor (idempotent) sebelum
+  memakai fitur ini.
+
+
 
 - **Time Off (Admin)** — pengajuan cuti/izin/sakit pegawai kini selalu muncul di menu Time Off
   (perbaikan query yang ambigu ke tabel `employees`), lengkap dengan jumlah per tab, badge

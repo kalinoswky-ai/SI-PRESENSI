@@ -39,8 +39,8 @@ export default async function AdminLeaveTypePage({
   const typeLabel = LEAVE_TYPE_LABEL[type];
   const supabase = createClient();
   const status = TABS.some((t) => t.key === searchParams.status) ? searchParams.status! : "pending";
-  // Izin & Sakit: Inspektur, Sekretaris, ATAU Admin utama dapat menyetujui/menolak.
-  // Cuti, Dinas Dalam, Dinas Luar: TETAP hanya Inspektur.
+  // Izin, Sakit, Pengecualian Apel: Inspektur, Sekretaris, ATAU Admin utama dapat menyetujui/menolak.
+  // Cuti, Dinas Dalam, Dinas Luar: Inspektur ATAU Sekretaris.
   const canApprove = (await getLeaveTypeApprover(type)) !== null;
   const isIzinSakit = type === "izin" || type === "sakit" || type === "pengecualian_apel";
 
@@ -89,7 +89,7 @@ export default async function AdminLeaveTypePage({
           <p className="text-sm text-slate-500">
             {isIzinSakit
               ? "Mode lihat saja — persetujuan/penolakan dilakukan oleh Inspektur, Sekretaris, atau Admin."
-              : "Mode lihat saja — persetujuan/penolakan hanya dilakukan oleh Inspektur."}
+              : "Mode lihat saja — persetujuan/penolakan dilakukan oleh Inspektur atau Sekretaris."}
           </p>
         )}
       </div>
@@ -187,7 +187,7 @@ export default async function AdminLeaveTypePage({
               {r.status === "pending" && canApprove && <LeaveActions id={r.id} />}
               {r.status === "pending" && !canApprove && (
                 <p className="text-xs font-medium text-amber-600">
-                  {isIzinSakit ? "Menunggu persetujuan Inspektur/Sekretaris/Admin." : "Menunggu persetujuan Inspektur."}
+                  {isIzinSakit ? "Menunggu persetujuan Inspektur/Sekretaris/Admin." : "Menunggu persetujuan Inspektur/Sekretaris."}
                 </p>
               )}
               {r.status !== "pending" && r.review_note && (

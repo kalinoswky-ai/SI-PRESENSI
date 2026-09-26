@@ -38,7 +38,7 @@ export default async function AdminOvertimePage({
   const from = `${month}-01`;
   const next = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
 
-  // Hanya Inspektur yang dapat menyetujui/menolak; Admin & Sekretaris mode lihat saja.
+  // Inspektur ATAU Sekretaris yang dapat menyetujui/menolak; Admin mode lihat saja.
   const canApprove = (await getLeaveApprover()) !== null;
 
   const { data: allRows, error: overtimeError } = await supabase
@@ -97,7 +97,7 @@ export default async function AdminOvertimePage({
         <div>
           <h1 className="text-lg font-bold text-slate-900">Lembur</h1>
           {!canApprove && (
-            <p className="text-sm text-slate-500">Mode lihat saja — persetujuan/penolakan hanya dilakukan oleh Inspektur.</p>
+            <p className="text-sm text-slate-500">Mode lihat saja — persetujuan/penolakan dilakukan oleh Inspektur atau Sekretaris.</p>
           )}
         </div>
         <form method="get" className="flex items-end gap-2">
@@ -200,7 +200,7 @@ export default async function AdminOvertimePage({
 
               {r.status === "pending" && canApprove && <OvertimeActions id={r.id} />}
               {r.status === "pending" && !canApprove && (
-                <p className="text-xs font-medium text-amber-600">Menunggu persetujuan Inspektur.</p>
+                <p className="text-xs font-medium text-amber-600">Menunggu persetujuan Inspektur/Sekretaris.</p>
               )}
               {r.status !== "pending" && r.review_note && (
                 <p className="text-xs text-slate-400">Catatan: {r.review_note}</p>

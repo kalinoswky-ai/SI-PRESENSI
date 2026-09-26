@@ -78,8 +78,8 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
       hint: canApproveLeave
         ? "Setujui atau tolak pengajuan"
         : canApproveIzinSakit
-        ? "Setujui/tolak izin & sakit — cuti/dinas tetap oleh Inspektur"
-        : "Lihat status pengajuan (persetujuan oleh Inspektur)",
+        ? "Setujui/tolak izin & sakit — cuti/dinas tetap oleh Inspektur/Sekretaris"
+        : "Lihat status pengajuan (persetujuan oleh Inspektur/Sekretaris)",
       icon: Briefcase,
     },
     ...(!isPimpinan
@@ -107,7 +107,7 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
               {canApproveLeave
                 ? "(lihat statistik; berwenang menyetujui cuti/izin/sakit/dinas)."
                 : canApproveIzinSakit
-                ? "(lihat statistik; berwenang menyetujui izin/sakit — cuti/dinas tetap oleh Inspektur)."
+                ? "(lihat statistik; berwenang menyetujui izin/sakit — cuti/dinas tetap oleh Inspektur/Sekretaris)."
                 : "(mode lihat saja)."}
             </p>
           )}
@@ -213,8 +213,8 @@ export default function AdminDashboardView({ data }: { data: AdminDashboardData 
                         {canApproveLeave
                           ? "menunggu persetujuan Anda"
                           : canApproveIzinSakit
-                          ? "menunggu persetujuan (izin/sakit oleh Anda; cuti/dinas oleh Inspektur)"
-                          : "menunggu persetujuan Inspektur"}
+                          ? "menunggu persetujuan (izin/sakit oleh Anda; cuti/dinas oleh Inspektur/Sekretaris)"
+                          : "menunggu persetujuan Inspektur/Sekretaris"}
                       </span>
                       <ChevronRight size={16} className="shrink-0 text-brand-500" />
                     </Link>

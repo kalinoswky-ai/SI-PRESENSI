@@ -9,11 +9,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ error: "Belum login." }, { status: 401 });
   }
 
-  // Penyetuju lembur = penyetuju yang sama dengan cuti/izin/sakit (Inspektur). Admin hanya melihat.
+  // Penyetuju lembur = penyetuju yang sama dengan cuti/dinas (Inspektur ATAU Sekretaris). Admin hanya melihat.
   const approver = await getLeaveApprover();
   if (!approver) {
     return NextResponse.json(
-      { error: "Hanya Inspektur yang berwenang menyetujui/menolak pengajuan lembur." },
+      { error: "Hanya Inspektur atau Sekretaris yang berwenang menyetujui/menolak pengajuan lembur." },
       { status: 403 }
     );
   }

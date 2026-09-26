@@ -36,7 +36,7 @@ export interface ActivityItem {
 export interface AdminDashboardData {
   adminName: string | null;
   isPimpinan: boolean;
-  /** true hanya untuk Inspektur (penyetuju cuti/izin/sakit/perjalanan dinas). Admin & Sekretaris = false. */
+  /** true untuk Inspektur ATAU Sekretaris (penyetuju penuh cuti/izin/sakit/dinas/lembur). Admin = false. */
   canApproveLeave: boolean;
   /** true untuk Inspektur, Sekretaris, ATAU Admin utama (penyetuju izin/sakit saja). */
   canApproveIzinSakit: boolean;

@@ -2,10 +2,12 @@ export type EmployeeRole = "employee" | "admin" | "pimpinan";
 export type FaceEnrollmentStatus = "none" | "pending" | "approved" | "rejected";
 // Sub-jabatan WAJIB diisi untuk role 'pimpinan', menentukan wewenang persetujuan secara
 // EKSPLISIT (tidak lagi ditebak dari teks kolom Jabatan):
-//   - "inspektur"  -> can_approve_leave otomatis true (boleh menyetujui SEMUA jenis pengajuan:
-//                     cuti/izin/sakit/dinas dalam/dinas luar).
-//   - "sekretaris" -> can_approve_leave tetap false, tapi boleh menyetujui Izin & Sakit saja
-//                     (lihat getLeaveTypeApprover / is_izin_sakit_approver).
+//   - "inspektur"  -> can_approve_leave otomatis true.
+//   - "sekretaris" -> can_approve_leave tetap false (kolom ini KHUSUS penanda Inspektur),
+//                     TAPI tetap diberi wewenang PENUH yang sama seperti Inspektur untuk
+//                     menyetujui SEMUA jenis pengajuan (cuti/izin/sakit/dinas dalam/dinas
+//                     luar/pengecualian apel/lembur) — lihat getLeaveApprover,
+//                     getLeaveTypeApprover, dan is_leave_approver() di database.
 export type PimpinanType = "inspektur" | "sekretaris";
 
 // Label tampilan untuk tiap role. "pimpinan" = akses lihat statistik/rekap

@@ -3,8 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { EmployeeRole, LeaveType, PimpinanType } from "@/types";
 
 /**
- * Jenis pengajuan yang boleh disetujui Sekretaris & Admin utama (selain Inspektur).
- * Cuti, Dinas Dalam, dan Dinas Luar TETAP wewenang khusus Inspektur — lihat getLeaveApprover.
+ * Jenis pengajuan yang (selain Inspektur & Sekretaris — lihat getLeaveApprover, yang berwenang
+ * penuh utk SEMUA jenis) juga boleh disetujui Admin utama.
  * "pengecualian_apel" digabung ke kelompok ini (sama seperti izin/sakit) sesuai permintaan:
  * pengajuan boleh disetujui pimpinan (Inspektur ATAU Sekretaris) atau Admin utama.
  */
@@ -83,8 +83,14 @@ export async function getViewerProfile(): Promise<{
 }
 
 /**
- * Penyetuju pengajuan cuti/izin/sakit: HANYA akun role 'pimpinan' yang aktif dan bertanda
- * can_approve_leave = true (diberikan ke Inspektur). Admin & Sekretaris hanya melihat.
+ * Penyetuju pengajuan cuti/izin/sakit/dinas/lembur — akun role 'pimpinan' yang aktif DAN:
+ *   - bertanda can_approve_leave = true (Inspektur), ATAU
+ *   - berjabatan Sekretaris (pimpinan_type = 'sekretaris', dgn fallback ke teks Jabatan lama
+ *     bila pimpinan_type belum diisi).
+ * Sekretaris diberi wewenang PENUH yang sama seperti Inspektur (termasuk Cuti, Dinas Dalam,
+ * Dinas Luar, dan Lembur — yang sebelumnya khusus Inspektur) supaya tetap ada yang bisa
+ * memproses pengajuan saat Inspektur berhalangan. Admin tidak termasuk di sini — Admin tetap
+ * hanya berwenang untuk Izin/Sakit/Pengecualian Apel (lihat getLeaveTypeApprover di bawah).
  * Gagal-tertutup: bila query error (mis. migrasi belum dijalankan) hasilnya null = tidak berwenang.
  * Dipakai di API (penegakan sesungguhnya, berpasangan dengan RLS is_leave_approver()) dan tampilan.
  */
@@ -95,21 +101,27 @@ export async function getLeaveApprover(): Promise<{ id: string; name: string } |
 
   const { data, error } = await supabase
     .from("employees")
-    .select("role, is_active, full_name, can_approve_leave")
+    .select("role, is_active, full_name, can_approve_leave, position, pimpinan_type")
     .eq("id", userData.user.id)
     .single();
 
   if (error || !data) return null;
-  if (data.role !== "pimpinan" || !data.is_active || data.can_approve_leave !== true) return null;
+  if (data.role !== "pimpinan" || !data.is_active) return null;
+
+  const isInspektur = data.can_approve_leave === true;
+  const isSekretaris =
+    data.pimpinan_type === "sekretaris" ||
+    (!data.pimpinan_type && ((data.position as string | null) ?? "").toLowerCase().includes("sekretaris"));
+
+  if (!isInspektur && !isSekretaris) return null;
   return { id: userData.user.id, name: data.full_name as string };
 }
 
 /**
  * Penyetuju pengajuan UNTUK JENIS TERTENTU (`type`):
- *  - Izin & Sakit: boleh Inspektur (getLeaveApprover), ATAU Sekretaris (role 'pimpinan',
- *    jabatan mengandung "sekretaris"), ATAU Admin utama (role 'admin') — masing-masing
- *    harus akun aktif.
- *  - Cuti, Dinas Dalam, Dinas Luar: TETAP hanya Inspektur (sama seperti getLeaveApprover).
+ *  - Semua jenis (Cuti, Izin, Sakit, Dinas Dalam, Dinas Luar, Pengecualian Apel, Lembur):
+ *    boleh Inspektur ATAU Sekretaris (getLeaveApprover) — masing-masing harus akun aktif.
+ *  - Izin, Sakit, Pengecualian Apel: TAMBAHAN boleh juga Admin utama (role 'admin').
  * Dipakai di API PATCH /api/leave/[id] dan tampilan folder Time Off, berpasangan dengan
  * RLS is_izin_sakit_approver() (lihat supabase/update-approval-izin-sakit-sekretaris-admin.sql).
  * Gagal-tertutup: error / role tak dikenal -> null (tidak berwenang).
@@ -117,7 +129,7 @@ export async function getLeaveApprover(): Promise<{ id: string; name: string } |
 export async function getLeaveTypeApprover(
   type: LeaveType
 ): Promise<{ id: string; name: string; role: EmployeeRole } | null> {
-  // Inspektur selalu berwenang, untuk semua jenis pengajuan.
+  // Inspektur ATAU Sekretaris selalu berwenang, untuk semua jenis pengajuan.
   const inspektur = await getLeaveApprover();
   if (inspektur) return { id: inspektur.id, name: inspektur.name, role: "pimpinan" };
 

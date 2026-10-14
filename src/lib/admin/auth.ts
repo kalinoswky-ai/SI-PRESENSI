@@ -158,3 +158,12 @@ export async function getLeaveTypeApprover(
   if (!isAdminUtama && !isSekretaris) return null;
   return { id: userData.user.id, name: data.full_name as string, role: data.role as EmployeeRole };
 }
+
+/**
+ * Penyetuju KOREKSI ABSENSI (Tahap 3). Mengikuti kelompok yang sama dengan Izin/Sakit/Pengecualian
+ * Apel: Inspektur, Sekretaris, ATAU Admin utama. Diletakkan di satu fungsi agar mudah diubah bila
+ * kebijakan berubah (mis. hanya Admin) tanpa menyentuh sistem persetujuan cuti/izin yang berjalan.
+ */
+export async function getCorrectionApprover(): Promise<{ id: string; name: string; role: EmployeeRole } | null> {
+  return getLeaveTypeApprover("izin");
+}

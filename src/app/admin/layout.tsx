@@ -7,10 +7,12 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
-  const [{ count }, { count: overtimeCount }, viewer] = await Promise.all([
+  const [{ count }, { count: overtimeCount }, { count: correctionCount }, viewer] = await Promise.all([
     supabase.from("leave_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
     // Bila migrasi lembur belum dijalankan, query ini error → count null → badge 0 (tidak memutus layout).
     supabase.from("overtime_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    // Bila migrasi koreksi belum dijalankan, query ini error → count null → badge 0.
+    supabase.from("attendance_corrections").select("id", { count: "exact", head: true }).eq("status", "pending"),
     getViewerProfile(),
   ]);
 
@@ -22,6 +24,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         orgName="Inspektorat Kab. Sumba Barat"
         pendingLeave={count ?? 0}
         pendingOvertime={overtimeCount ?? 0}
+        pendingCorrection={correctionCount ?? 0}
         role={viewer?.role ?? "admin"}
         viewerLabel={viewerLabel}
       />

@@ -4,11 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { LogOut, Home, CalendarDays, Briefcase, Timer, ScanFace, KeyRound, BarChart3 } from "lucide-react";
+import { LogOut, Home, CalendarDays, CalendarCheck, Briefcase, Timer, ScanFace, KeyRound, BarChart3 } from "lucide-react";
 
 const links = [
   { href: "/dashboard", label: "Beranda", sublabel: "Home / Time Clock", icon: Home },
   { href: "/dashboard/history", label: "Riwayat", sublabel: "Timesheets", icon: CalendarDays },
+  { href: "/dashboard/calendar", label: "Kalender", sublabel: "Kalender Kehadiran", icon: CalendarCheck },
   { href: "/dashboard/leave", label: "Cuti/Izin", sublabel: "Time Off", icon: Briefcase },
   { href: "/dashboard/overtime", label: "Lembur", sublabel: "Overtime", icon: Timer },
   { href: "/dashboard/face-enrollment", label: "Wajah Saya", sublabel: "Face Enrollment", icon: ScanFace },
@@ -76,11 +77,9 @@ export default function EmployeeNav({ title, isPimpinan = false }: { title: stri
         </div>
       </header>
 
-      {/* Mobile bottom tab bar. Untuk pimpinan (7 tab) dibuat bisa digeser agar label tetap terbaca. */}
+      {/* Mobile bottom tab bar. Bisa digeser (pimpinan punya 8 tab) agar label tetap terbaca. */}
       <nav
-        className={`glass-nav fixed inset-x-0 bottom-0 top-auto z-10 flex border-b-0 border-t sm:hidden ${
-          isPimpinan ? "overflow-x-auto" : ""
-        }`}
+        className="glass-nav fixed inset-x-0 bottom-0 top-auto z-10 flex overflow-x-auto border-b-0 border-t sm:hidden"
       >
         {navLinks.map((link) => (
           <Link
@@ -88,7 +87,7 @@ export default function EmployeeNav({ title, isPimpinan = false }: { title: stri
             href={link.href}
             aria-current={pathname === link.href ? "page" : undefined}
             className={`flex flex-col items-center gap-0.5 py-2 text-xs font-medium transition ${
-              isPimpinan ? "w-[70px] shrink-0" : "flex-1"
+              isPimpinan ? "w-[70px] shrink-0" : "min-w-[56px] flex-1"
             }`}
           >
             <span

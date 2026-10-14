@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { mapsUrl, formatDistance, witaDateKey } from "@/lib/geo";
 import type { AttendanceRecord, Employee, LeaveRequest } from "@/types";
@@ -309,6 +310,15 @@ function DayDetail({ day }: { day: CalendarDay }) {
           {day.apelExemption.apel_exemption_reason ? ` (${APEL_EXEMPTION_REASON_LABEL[day.apelExemption.apel_exemption_reason]})` : ""}
           . Tetap wajib absen masuk/pulang.
         </p>
+      )}
+
+      {!day.isFuture && (
+        <Link
+          href={`/dashboard/correction?date=${day.date}`}
+          className="mt-3 inline-block text-xs font-medium text-brand-600 underline"
+        >
+          Ajukan koreksi absensi untuk tanggal ini
+        </Link>
       )}
 
       {a && a.rejected.length > 0 && (

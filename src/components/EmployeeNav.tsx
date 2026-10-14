@@ -4,12 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { LogOut, Home, CalendarDays, CalendarCheck, Briefcase, Timer, ScanFace, KeyRound, BarChart3 } from "lucide-react";
+import { LogOut, Home, CalendarDays, CalendarCheck, FilePen, Briefcase, Timer, ScanFace, KeyRound, BarChart3 } from "lucide-react";
 
 const links = [
   { href: "/dashboard", label: "Beranda", sublabel: "Home / Time Clock", icon: Home },
   { href: "/dashboard/history", label: "Riwayat", sublabel: "Timesheets", icon: CalendarDays },
   { href: "/dashboard/calendar", label: "Kalender", sublabel: "Kalender Kehadiran", icon: CalendarCheck },
+  { href: "/dashboard/correction", label: "Koreksi", sublabel: "Koreksi Absensi", icon: FilePen },
   { href: "/dashboard/leave", label: "Cuti/Izin", sublabel: "Time Off", icon: Briefcase },
   { href: "/dashboard/overtime", label: "Lembur", sublabel: "Overtime", icon: Timer },
   { href: "/dashboard/face-enrollment", label: "Wajah Saya", sublabel: "Face Enrollment", icon: ScanFace },

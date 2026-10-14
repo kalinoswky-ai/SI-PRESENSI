@@ -211,3 +211,27 @@ export interface OvertimeRequest {
   review_note: string | null;
   created_at: string;
 }
+
+// Pengajuan koreksi absensi oleh pegawai (Tahap 2). Pengajuan TIDAK mengubah tabel attendance;
+// data resmi hanya berubah setelah disetujui pihak berwenang (Tahap 3).
+export type CorrectionType = "in" | "out";
+
+export const CORRECTION_TYPE_LABEL: Record<CorrectionType, string> = {
+  in: "Absen Masuk",
+  out: "Absen Pulang",
+};
+
+export interface AttendanceCorrection {
+  id: string;
+  employee_id: string;
+  work_date: string; // "YYYY-MM-DD" (WITA)
+  type: CorrectionType;
+  requested_time: string; // "HH:MM:SS" (WITA)
+  reason: string;
+  attachment_url: string | null;
+  status: LeaveStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  created_at: string;
+}

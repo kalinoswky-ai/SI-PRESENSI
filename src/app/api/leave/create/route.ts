@@ -1,0 +1,112 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { notifyNewLeaveRequest } from "@/lib/notifications/notify";
+import type { ApelExemptionReason, LeaveType, Office } from "@/types";
+import { isPerjadinType } from "@/types";
+
+const VALID_TYPES = ["cuti", "izin", "sakit", "dinas_dalam", "dinas_luar", "pengecualian_apel"];
+const VALID_APEL_EXEMPTION_REASONS: ApelExemptionReason[] = ["sakit", "hamil", "alasan_khusus"];
+
+export async function POST(request: NextRequest) {
+  const supabase = createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) {
+    return NextResponse.json({ error: "Belum login." }, { status: 401 });
+  }
+  const userId = userData.user.id;
+
+  const formData = await request.formData();
+  const type = formData.get("type") as string; // 'cuti' | 'izin' | 'sakit' | 'dinas_dalam' | 'dinas_luar'
+  const startDate = formData.get("start_date") as string;
+  const endDate = formData.get("end_date") as string;
+  const reason = (formData.get("reason") as string)?.trim();
+  const destination = (formData.get("destination") as string | null)?.trim() || null;
+  const letterNumber = (formData.get("letter_number") as string | null)?.trim() || null;
+  const apelExemptionReasonRaw = (formData.get("apel_exemption_reason") as string | null) || null;
+  const attachment = formData.get("attachment") as File | null;
+
+  if (!VALID_TYPES.includes(type) || !startDate || !endDate || !reason) {
+    return NextResponse.json({ error: "Data pengajuan tidak lengkap." }, { status: 400 });
+  }
+  if (endDate < startDate) {
+    return NextResponse.json(
+      { error: "Tanggal selesai tidak boleh sebelum tanggal mulai." },
+      { status: 400 }
+    );
+  }
+  // Perjalanan dinas (dalam/luar daerah) wajib mencantumkan tujuan/lokasi penugasan.
+  if (isPerjadinType(type as LeaveType) && !destination) {
+    return NextResponse.json(
+      { error: "Mohon isi tujuan/lokasi penugasan perjalanan dinas." },
+      { status: 400 }
+    );
+  }
+  // Pengecualian apel wajib mencantumkan kategori alasan (sakit/hamil/alasan khusus).
+  const apelExemptionReason =
+    type === "pengecualian_apel" ? (apelExemptionReasonRaw as ApelExemptionReason | null) : null;
+  if (type === "pengecualian_apel" && !VALID_APEL_EXEMPTION_REASONS.includes(apelExemptionReason as ApelExemptionReason)) {
+    return NextResponse.json(
+      { error: "Mohon pilih kategori alasan pengecualian apel (Sakit/Hamil/Alasan Khusus)." },
+      { status: 400 }
+    );
+  }
+
+  let attachmentUrl: string | null = null;
+  if (attachment && attachment.size > 0) {
+    const ext = attachment.name.split(".").pop() || "pdf";
+    const path = `${userId}/${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from("leave-attachments")
+      .upload(path, await attachment.arrayBuffer(), {
+        contentType: attachment.type || "application/octet-stream",
+      });
+    if (!uploadError) {
+      attachmentUrl = path;
+    }
+  }
+
+  const { data: record, error } = await supabase
+    .from("leave_requests")
+    .insert({
+      employee_id: userId,
+      type,
+      start_date: startDate,
+      end_date: endDate,
+      reason,
+      destination,
+      letter_number: letterNumber,
+      apel_exemption_reason: apelExemptionReason,
+      attachment_url: attachmentUrl,
+      status: "pending",
+    })
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  // Beritahu admin (WhatsApp/Telegram) bahwa ada pengajuan baru — best-effort.
+  try {
+    const [{ data: employee }, { data: office }] = await Promise.all([
+      supabase.from("employees").select("full_name, nip, position").eq("id", userId).single(),
+      supabase.from("offices").select("*").limit(1).single(),
+    ]);
+    if (employee && office) {
+      await notifyNewLeaveRequest(employee, office as Office, {
+        type: type as LeaveType,
+        start_date: startDate,
+        end_date: endDate,
+        reason,
+      });
+    }
+  } catch {
+    // diabaikan: notifikasi tidak boleh menggagalkan pengajuan
+  }
+
+  return NextResponse.json({
+    success: true,
+    record,
+    attachmentFailed: Boolean(attachment && attachment.size > 0 && !attachmentUrl),
+  });
+}

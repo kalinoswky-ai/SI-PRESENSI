@@ -31,6 +31,8 @@ export default function KegiatanManager({
     latitude: "",
     longitude: "",
     radius_meters: 200,
+    allow_clock_out: true, // tugas luar: pegawai boleh absen pulang dari lokasi tugas
+    clock_out_time: "12:00",
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -99,6 +101,19 @@ export default function KegiatanManager({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_active: !k.is_active }),
     });
+    router.refresh();
+  }
+
+  async function patchClockOut(k: Kegiatan, fields: { allow_clock_out?: boolean; clock_out_time?: string }) {
+    const res = await fetch(`/api/kegiatan/${k.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      alert(json?.error ?? "Gagal memperbarui kegiatan.");
+    }
     router.refresh();
   }
 
@@ -189,6 +204,34 @@ export default function KegiatanManager({
                 onChange={(e) => setForm({ ...form, radius_meters: parseInt(e.target.value, 10) || 0 })}
               />
             </div>
+            <div className="sm:col-span-2 space-y-2 rounded-lg border border-brand-100 bg-brand-50/40 p-3">
+              <label className="flex items-start gap-2 text-sm text-slate-800">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={form.allow_clock_out}
+                  onChange={(e) => setForm({ ...form, allow_clock_out: e.target.checked })}
+                />
+                <span>
+                  <span className="font-semibold">Absen pulang dari lokasi tugas</span>
+                  <span className="block text-xs text-slate-500">
+                    Peserta tidak wajib kembali ke kantor: boleh absen pulang langsung dari lokasi kegiatan (di dalam
+                    radius) mulai jam di bawah, tanpa menunggu jam pulang kantor.
+                  </span>
+                </span>
+              </label>
+              {form.allow_clock_out && (
+                <div className="max-w-[10rem]">
+                  <label className="label">Absen pulang dibuka</label>
+                  <input
+                    type="time"
+                    className="input"
+                    value={form.clock_out_time}
+                    onChange={(e) => setForm({ ...form, clock_out_time: e.target.value })}
+                  />
+                </div>
+              )}
+            </div>
             <div className="flex items-end">
               <button type="button" onClick={useCurrentLocation} className="btn-secondary">
                 <MapPin size={16} />
@@ -237,6 +280,13 @@ export default function KegiatanManager({
                 {participantCounts[k.id] ?? 0} peserta
               </p>
               {k.description && <p className="text-xs text-slate-500">{k.description}</p>}
+              {k.allow_clock_out && k.clock_out_time ? (
+                <p className="mt-1 text-xs font-medium text-emerald-700">
+                  Pulang dari lokasi tugas dibuka mulai {k.clock_out_time} WITA (tidak wajib kembali ke kantor)
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-slate-400">Absen pulang mengikuti jam pulang kantor</p>
+              )}
             </div>
             {canManage && (
               <div className="flex items-center gap-3">
@@ -244,6 +294,29 @@ export default function KegiatanManager({
                   <input type="checkbox" checked={k.is_active} onChange={() => toggleActive(k)} />
                   Aktif
                 </label>
+                <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(k.allow_clock_out)}
+                    onChange={(e) =>
+                      patchClockOut(k, { allow_clock_out: e.target.checked, clock_out_time: k.clock_out_time ?? "12:00" })
+                    }
+                  />
+                  Pulang di lokasi
+                </label>
+                {k.allow_clock_out && (
+                  <input
+                    type="time"
+                    className="input !w-28 !py-1 text-xs"
+                    defaultValue={k.clock_out_time ?? "12:00"}
+                    onBlur={(e) => {
+                      if (e.target.value && e.target.value !== k.clock_out_time) {
+                        patchClockOut(k, { clock_out_time: e.target.value });
+                      }
+                    }}
+                    title="Jam absen pulang di lokasi tugas dibuka (WITA)"
+                  />
+                )}
                 <button type="button" onClick={() => remove(k)} className="text-red-500 hover:text-red-700" title="Hapus">
                   <Trash2 size={16} />
                 </button>

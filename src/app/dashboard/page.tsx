@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useGeolocation } from "@/lib/useGeolocation";
 import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
 import ServerClock from "@/components/ServerClock";
-import { distanceInMeters, isApelOver, isBeforeWorkEnd, isFridayWita, witaDateKey, witaDayOfMonth, witaIsoWeekday, witaTimeHHMM } from "@/lib/geo";
+import { distanceInMeters, isApelOver, isAtOrAfterWitaTime, isBeforeWorkEnd, isFridayWita, witaDateKey, witaDayOfMonth, witaIsoWeekday, witaTimeHHMM } from "@/lib/geo";
 import { formatTime } from "@/lib/employee/history";
 import RecentHistory from "@/components/employee-dashboard/RecentHistory";
 import type { ApelExemptionReason, ApelLocation, AttendanceRecord, Employee, Kegiatan, LeaveRequest, Office, WorkMode } from "@/types";
@@ -162,6 +162,10 @@ export default function DashboardPage() {
   const serverTimeNow = serverNowBase ? new Date(serverNowBase.serverMs + (Date.now() - serverNowBase.localMs)) : null;
   const canClockOut = !office || !serverTimeNow ? true : !isBeforeWorkEnd(serverTimeNow, office.work_end);
 
+  // Kegiatan lapangan hari ini yang mengizinkan peserta absen PULANG langsung dari lokasi tugas
+  // (tidak wajib kembali ke kantor). Server memeriksa ulang semua syarat saat absen dikirim.
+  const clockOutActivities = activities.filter((a) => a.allow_clock_out && a.clock_out_time);
+
   const validIn = todayRecords.find((r) => r.type === "in" && r.status === "valid");
   const validOut = todayRecords.find((r) => r.type === "out" && r.status === "valid");
   const nextType: "in" | "out" = !validIn ? "in" : "out";
@@ -203,7 +207,7 @@ export default function DashboardPage() {
     formData.append("selfie", capture.imageBlob, "selfie.jpg");
     formData.append("work_mode", isWfh ? "wfh" : "wfo");
     if (pendingType === "in" && chosenApelId && chosenApelId !== "__kantor__") formData.append("apel_location_id", chosenApelId);
-    if (pendingType === "in" && chosenActivityId) formData.append("activity_id", chosenActivityId);
+    if (chosenActivityId) formData.append("activity_id", chosenActivityId); // absen masuk ATAU pulang di lokasi tugas
 
     try {
       const res = await fetch("/api/attendance/clock", { method: "POST", body: formData });
@@ -230,9 +234,9 @@ export default function DashboardPage() {
     }
   }
 
-  function startActivityClock(id: string) {
+  function startActivityClock(id: string, type: "in" | "out" = "in") {
     setChosenActivityId(id);
-    startClock("in");
+    startClock(type);
   }
 
   function reset() {
@@ -470,6 +474,38 @@ export default function DashboardPage() {
               {nextType === "in" ? <LogIn size={18} /> : <LogOut size={18} />}
               {nextType === "in" ? "Absen Masuk" : "Absen Pulang"}
             </button>
+            {nextType === "out" && clockOutActivities.length > 0 && (
+              <div className="mx-auto mt-5 max-w-sm space-y-2 border-t border-slate-100 pt-4 text-left">
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                  <Flag size={16} className="text-brand-600" /> Pulang dari lokasi tugas
+                </p>
+                <p className="text-xs text-slate-500">
+                  Sedang tugas luar/lapangan? Anda tidak perlu kembali ke kantor — absen pulang langsung dari
+                  lokasi kegiatan (di dalam radius lokasi) mulai jam yang ditentukan.
+                </p>
+                {clockOutActivities.map((a) => {
+                  const open = serverTimeNow ? isAtOrAfterWitaTime(serverTimeNow, a.clock_out_time as string) : false;
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => startActivityClock(a.id, "out")}
+                      disabled={!open}
+                      className="flex w-full items-center gap-2 rounded-xl border border-brand-100 bg-white/60 px-3 py-3 text-left text-brand-900 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <LogOut size={20} className="shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block font-semibold">{a.name}</span>
+                        <span className="block text-xs text-slate-500">
+                          {open
+                            ? "Absen pulang dari lokasi tugas"
+                            : `Absen pulang di lokasi dibuka pukul ${a.clock_out_time} WITA`}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {nextType === "in" && activities.length > 0 && (
               <div className="mx-auto mt-5 max-w-sm space-y-2 border-t border-slate-100 pt-4 text-left">
                 <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
@@ -519,7 +555,15 @@ export default function DashboardPage() {
             />
             {geo.loading && <span className="text-slate-500">Mendapatkan lokasi GPS...</span>}
             {geo.error && <span className="text-red-600">{geo.error}</span>}
-            {pendingType === "out" ? (
+            {pendingType === "out" && chosenActivity ? (
+              // Absen pulang dari lokasi tugas lapangan: harus di dalam radius kegiatan
+              activityDistance !== null && (
+                <span className={withinActivity ? "text-emerald-700" : "text-amber-600"}>
+                  Jarak ke lokasi tugas &quot;{chosenActivity.name}&quot;: {Math.round(activityDistance)}m{" "}
+                  {withinActivity ? "(dalam radius)" : `(di luar radius, maksimal ${chosenActivity.radius_meters}m)`}
+                </span>
+              )
+            ) : pendingType === "out" ? (
               // Absen pulang tidak mensyaratkan radius kantor — lokasi tetap direkam sbg jejak audit
               distance !== null && (
                 <span className="text-slate-600">

@@ -10,6 +10,7 @@ import {
   isBeforeWorkEnd,
   isApelOver,
   isWithinWitaWindow,
+  isAtOrAfterWitaTime,
   witaDateKey,
   witaDayOfMonth,
   witaIsoWeekday,
@@ -203,6 +204,52 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // 3c-3. Absen PULANG dari LOKASI TUGAS lapangan (pegawai tidak wajib kembali ke kantor).
+  //       Hanya bila klien meminta kegiatan tertentu, dan SEMUA syarat diperiksa ulang di server:
+  //       pegawai terdaftar sbg peserta, kegiatan aktif & untuk hari ini, kegiatan memang
+  //       mengizinkan absen pulang di lokasi (allow_clock_out), jam sekarang sudah mencapai
+  //       clock_out_time, dan posisi berada dalam radius lokasi kegiatan. Bila lolos, absen pulang
+  //       TIDAK lagi menunggu jam pulang kantor (work_end). Bila gagal, absen DITOLAK dengan alasan
+  //       yang jelas (tidak jatuh diam-diam ke aturan lain).
+  let outActivity: Kegiatan | null = null;
+  let outActivityOk = false;
+  let outActivityError: string | null = null;
+  let outActivityDistance: number | null = null;
+  if (type === "out" && requestedActivityId) {
+    const { data: act } = await supabase
+      .from("kegiatan_absensi")
+      .select("*")
+      .eq("id", requestedActivityId)
+      .maybeSingle();
+    const { data: member } = await supabase
+      .from("kegiatan_peserta")
+      .select("employee_id")
+      .eq("kegiatan_id", requestedActivityId)
+      .eq("employee_id", userId)
+      .maybeSingle();
+    outActivity = (act as Kegiatan | null) ?? null;
+    if (!outActivity || !member) {
+      outActivityError = "Anda tidak terdaftar sebagai peserta kegiatan ini.";
+    } else if (!outActivity.is_active) {
+      outActivityError = `Kegiatan "${outActivity.name}" sudah dinonaktifkan.`;
+    } else if (outActivity.activity_date !== todayKey) {
+      outActivityError = `Kegiatan "${outActivity.name}" bukan untuk hari ini.`;
+    } else if (!outActivity.allow_clock_out || !outActivity.clock_out_time) {
+      outActivityError = `Kegiatan "${outActivity.name}" tidak mengizinkan absen pulang dari lokasi tugas. Absen pulang dilakukan setelah jam pulang kantor (${office.work_end} WITA).`;
+    } else if (!isAtOrAfterWitaTime(serverTime, outActivity.clock_out_time)) {
+      outActivityError = `Absen pulang dari lokasi kegiatan "${outActivity.name}" baru dibuka pukul ${outActivity.clock_out_time} WITA (sekarang ${witaTimeHHMM(
+        serverTime
+      )} WITA).`;
+    } else {
+      outActivityDistance = distanceInMeters(latitude, longitude, outActivity.latitude, outActivity.longitude);
+      if (outActivityDistance <= outActivity.radius_meters) {
+        outActivityOk = true;
+      } else {
+        outActivityError = `Lokasi di luar radius kegiatan "${outActivity.name}" (${Math.round(outActivityDistance)}m, maksimal ${outActivity.radius_meters}m). Absen pulang dari lokasi tugas harus dilakukan di titik kegiatan.`;
+      }
+    }
+  }
+
   // 3d. Tentukan mode kerja. WFH (bebas radius kantor SEPANJANG HARI) HANYA berlaku bila hari
   //     Jumat & kebijakan Jumat hybrid aktif (sesuai pilihan pegawai). Pengecualian apel BUKAN
   //     WFH — pegawai yang dikecualikan tetap berstatus WFO karena tetap wajib masuk kantor
@@ -242,7 +289,8 @@ export async function POST(request: NextRequest) {
 
   // Absen PULANG hanya boleh dilakukan TEPAT pada jam pulang (work_end) kantor atau setelahnya —
   // sebelum jam tsb, clock-out selalu ditolak, apa pun lokasi/mode kerjanya.
-  const beforeWorkEnd = type === "out" && isBeforeWorkEnd(serverTime, office.work_end);
+  // Pengecualian: absen pulang di LOKASI TUGAS lapangan yang sah (lihat 3c-3) tidak menunggu work_end.
+  const beforeWorkEnd = type === "out" && !outActivityOk && isBeforeWorkEnd(serverTime, office.work_end);
 
   // Radius kantor HANYA diwajibkan untuk absen MASUK mode WFO, KECUALI pegawai yang punya
   // pengecualian apel disetujui hari ini (apelExempted) — mereka TETAP WFO (bukan WFH), hanya
@@ -250,7 +298,10 @@ export async function POST(request: NextRequest) {
   // apel selesai mereka tetap wajib masuk kantor seperti biasa. Absen PULANG tidak pernah
   // ditolak karena lokasi — pegawai yang audit/tugas lapangan hingga lewat jam kantor tetap bisa
   // absen pulang; titik koordinat sebenarnya tetap direkam untuk jejak audit.
-  if (beforeWorkEnd) {
+  if (type === "out" && requestedActivityId && outActivityError) {
+    status = "rejected";
+    rejectReason = outActivityError;
+  } else if (beforeWorkEnd) {
     status = "rejected";
     rejectReason = `Absen pulang belum bisa dilakukan. Jam pulang yang ditentukan adalah pukul ${office.work_end} WITA — saat ini baru pukul ${witaTimeHHMM(
       serverTime
@@ -312,7 +363,8 @@ export async function POST(request: NextRequest) {
       locationLabel = apelLocation.name;
     }
   } else {
-    if (workMode === "wfh") locationLabel = "Pulang dari rumah (WFH)";
+    if (outActivityOk && outActivity) locationLabel = `Pulang dari lokasi tugas: ${outActivity.name}`;
+    else if (workMode === "wfh") locationLabel = "Pulang dari rumah (WFH)";
     else if (withinOfficeGeofence) locationLabel = "Pulang dari kantor";
     else locationLabel = `Pulang di luar kantor / lapangan (${formatDistance(distance)} dari kantor)`;
   }
@@ -330,7 +382,7 @@ export async function POST(request: NextRequest) {
       latitude,
       longitude,
       distance_meters: Math.round(distance * 100) / 100,
-      within_geofence: withinGeofence || activityOk,
+      within_geofence: withinGeofence || activityOk || outActivityOk,
       face_match: faceMatch,
       face_distance: Math.round(fDistance * 1000) / 1000,
       selfie_url: selfieUrl,
@@ -339,7 +391,7 @@ export async function POST(request: NextRequest) {
       is_late: isLate,
       work_mode: workMode,
       apel_location_id: apelLocation?.id ?? null,
-      activity_id: activityOk ? activity?.id ?? null : null,
+      activity_id: activityOk ? activity?.id ?? null : outActivityOk ? outActivity?.id ?? null : null,
       location_label: locationLabel,
     })
     .select()

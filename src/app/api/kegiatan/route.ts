@@ -28,6 +28,8 @@ export async function POST(request: NextRequest) {
   const latitude = Number(body?.latitude);
   const longitude = Number(body?.longitude);
   const radius = Math.round(Number(body?.radius_meters));
+  const allowClockOut = body?.allow_clock_out === true;
+  const clockOutTime = body?.clock_out_time;
   const participantIds: string[] = Array.isArray(body?.participant_ids)
     ? Array.from(new Set(body.participant_ids.filter((x: unknown) => typeof x === "string" && UUID_RE.test(x))))
     : [];
@@ -43,6 +45,14 @@ export async function POST(request: NextRequest) {
   }
   if (startTime >= endTime) {
     return NextResponse.json({ error: "Jam selesai harus lebih besar dari jam mulai." }, { status: 400 });
+  }
+  if (allowClockOut) {
+    if (typeof clockOutTime !== "string" || !TIME_RE.test(clockOutTime)) {
+      return NextResponse.json({ error: "Jam mulai absen pulang di lokasi tugas tidak valid (format HH:MM)." }, { status: 400 });
+    }
+    if (clockOutTime <= startTime) {
+      return NextResponse.json({ error: "Jam absen pulang harus lebih besar dari jam absen dibuka." }, { status: 400 });
+    }
   }
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
     return NextResponse.json({ error: "Koordinat lokasi kegiatan tidak valid." }, { status: 400 });
@@ -68,6 +78,9 @@ export async function POST(request: NextRequest) {
       radius_meters: radius,
       is_active: true,
       created_by: actor.id,
+      // Kolom opsi pulang hanya dikirim bila dipakai, agar pembuatan kegiatan biasa tetap berjalan
+      // walau migrasi update-kegiatan-pulang-lokasi-tugas.sql belum dijalankan.
+      ...(allowClockOut ? { allow_clock_out: true, clock_out_time: clockOutTime } : {}),
     })
     .select("id")
     .single();
@@ -77,7 +90,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: notReady
-          ? "Fitur belum aktif: jalankan supabase/update-admin-approval-apel-kegiatan.sql di Supabase SQL Editor."
+          ? allowClockOut
+            ? "Fitur belum aktif: jalankan supabase/update-admin-approval-apel-kegiatan.sql dan supabase/update-kegiatan-pulang-lokasi-tugas.sql di Supabase SQL Editor."
+            : "Fitur belum aktif: jalankan supabase/update-admin-approval-apel-kegiatan.sql di Supabase SQL Editor."
           : "Gagal menyimpan kegiatan.",
       },
       { status: 500 }

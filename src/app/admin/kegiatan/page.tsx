@@ -32,7 +32,7 @@ export default async function AdminKegiatanPage() {
         <h1 className="text-lg font-bold text-slate-900">Kegiatan Lapangan</h1>
         <p className="text-sm text-slate-500">
           Absen masuk di lokasi kegiatan (mis. kegiatan pagi hari yang tidak memungkinkan ke kantor). Terkunci:
-          hanya peserta yang ditugaskan, pada tanggal &amp; jam yang ditetapkan, dan di dalam radius lokasi.
+          hanya peserta yang ditugaskan, pada tanggal &amp; jam yang ditetapkan, dan di dalam radius lokasi. Untuk tugas luar, aktifkan opsi <strong>Absen pulang dari lokasi tugas</strong> agar peserta tidak wajib kembali ke kantor untuk absen pulang.
         </p>
         {!canManage && <p className="mt-1 text-sm text-slate-500">Mode lihat saja.</p>}
       </div>

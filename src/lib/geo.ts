@@ -208,6 +208,17 @@ export function isApelOver(serverTime: Date, apelEndHHMM: string | null | undefi
   return witaMinutesOfDay(serverTime) >= end;
 }
 
+/**
+ * Apakah waktu SEKARANG (WITA) sudah mencapai / melewati jam HH:MM. Dipakai utk membuka absen
+ * pulang di lokasi tugas lapangan (clock_out_time kegiatan). Format tidak valid -> false.
+ */
+export function isAtOrAfterWitaTime(serverTime: Date, hhmm: string): boolean {
+  const now = witaMinutesOfDay(serverTime);
+  const target = hhmmToMinutes(hhmm);
+  if (Number.isNaN(now) || Number.isNaN(target)) return false;
+  return now >= target;
+}
+
 /** Apakah waktu sekarang (WITA) berada dalam jendela [start, end] (inklusif), format "HH:MM". */
 export function isWithinWitaWindow(serverTime: Date, startHHMM: string, endHHMM: string): boolean {
   const now = witaMinutesOfDay(serverTime);

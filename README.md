@@ -60,6 +60,16 @@ tergantung pihak ketiga.
   jendela, dan dalam radius — jika gagal, absen ditolak. Absen kegiatan tidak dihitung terlambat.
 - Jalankan `supabase/update-admin-approval-apel-kegiatan.sql` sekali di SQL Editor (idempotent).
 
+## Pembaruan: Reset Password Pegawai oleh Admin Utama
+
+- Di **Admin → People → Kelola Pegawai** ada kartu **Lupa Password** dengan tombol **Reset Password**.
+  Admin bisa mengetik password baru (min. 8 karakter) atau mengosongkannya agar sistem membuat password acak.
+  Password baru tampil **sekali** untuk disampaikan ke pegawai; pegawai wajib menggantinya saat login berikutnya
+  (`must_change_password`).
+- Password lama **tidak dapat dilihat** — Supabase hanya menyimpan hash, dan itu memang disengaja.
+- Hanya Admin; tidak bisa untuk akun Admin lain / diri sendiri. Dicatat di Riwayat Perubahan
+  (`employee.reset_password`) tanpa menyimpan passwordnya. Tidak perlu migrasi SQL baru.
+
 ## Pembaruan: Pimpinan Dipecah Jadi Inspektur / Sekretaris (Otorisasi Langsung Aktif)
 
 - **Menu Tambah Pegawai & Kelola Pegawai** kini punya dropdown baru **Jabatan Pimpinan** yang

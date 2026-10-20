@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { LEAVE_TYPE_LABEL } from "@/types";
 import type { LeaveType } from "@/types";
-import { FolderOpen } from "lucide-react";
+import { BarChart3, FolderOpen } from "lucide-react";
 
 // Selalu baca data terbaru dari Supabase (jangan di-cache Next.js).
 export const dynamic = "force-dynamic";
@@ -35,6 +35,10 @@ export default async function AdminLeaveFoldersPage() {
       <div>
         <h1 className="text-lg font-bold text-slate-900">Time Off</h1>
         <p className="text-sm text-slate-500">Pilih folder untuk melihat pengajuan sesuai jenisnya.</p>
+        <Link href="/admin/leave/rekap" className="btn-secondary mt-3 inline-flex">
+          <BarChart3 size={16} />
+          Rekap &amp; Grafik Pengajuan
+        </Link>
       </div>
 
       {error && (

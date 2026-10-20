@@ -419,3 +419,18 @@ Bila pegawai yang cuti/izin/sakit/dinas (pengajuan sudah **disetujui**) ternyata
   tanggal tidak boleh lampau (gunakan Koreksi Absensi untuk itu). Tercatat di **Riwayat Perubahan** (`leave.resume_early`);
   bila jejak audit gagal tersimpan, perubahan dibatalkan. Tanggal akhir semula tersimpan di `original_end_date`.
 - Jalankan `supabase/update-masuk-lebih-awal.sql` sekali di SQL Editor (idempotent).
+
+## Pembaruan: Rekap & Grafik Pengajuan Time Off
+
+- **Admin → Time Off → tombol Rekap & Grafik Pengajuan** (`/admin/leave/rekap`). Memetakan pegawai yang mengajukan
+  cuti / izin / sakit / dinas dalam & luar daerah. Filter: periode (berdasar tanggal mulai pengajuan), jenis, status, dan
+  ambang **"sering mengajukan"** (default ≥ 3x).
+- Isi halaman: kartu ringkasan (total pengajuan, jumlah & persentase pegawai yang mengajukan, jumlah pegawai "sering",
+  hari kerja terpakai), grafik **pengajuan per jenis**, **sebaran berapa pegawai mengajukan 0x/1x/2x/…**, **tren per bulan**,
+  **10 pegawai teratas**, dan tabel pemetaan per pegawai (rincian per jenis, total, hari kerja, pengajuan terakhir).
+- **Unduh Excel** (`/api/leave/export`, Admin & Pimpinan): sheet Ringkasan, Per Pegawai, Per Bulan, Detail Pengajuan —
+  mengikuti filter yang sedang dipakai.
+- Aturan hitung: "Semua" = cuti, izin, sakit, dinas dalam, dinas luar (pengecualian apel hanya bila dipilih). Penyebut
+  persentase = pegawai aktif bukan akun Admin. Hari kerja = Senin–Jumat dari pengajuan **Disetujui** saja (libur nasional
+  tidak dikurangkan); pengajuan Dibatalkan/Ditolak/Menunggu tetap dihitung sebagai pengajuan tetapi 0 hari.
+- Tidak perlu migrasi SQL baru.

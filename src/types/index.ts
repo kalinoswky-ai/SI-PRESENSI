@@ -265,6 +265,10 @@ export interface Kegiatan {
   longitude: number;
   radius_meters: number;
   is_active: boolean;
+  /** true = peserta boleh absen PULANG dari lokasi kegiatan ini (tugas lapangan), tidak wajib kembali ke kantor. */
+  allow_clock_out?: boolean;
+  /** "HH:MM" WITA — absen pulang di lokasi tugas dibuka mulai jam ini (tanpa menunggu work_end kantor). */
+  clock_out_time?: string | null;
   created_by: string | null;
   created_at: string;
 }

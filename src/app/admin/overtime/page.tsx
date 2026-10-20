@@ -97,7 +97,7 @@ export default async function AdminOvertimePage({
         <div>
           <h1 className="text-lg font-bold text-slate-900">Lembur</h1>
           {!canApprove && (
-            <p className="text-sm text-slate-500">Mode lihat saja — persetujuan/penolakan dilakukan oleh Inspektur atau Sekretaris.</p>
+            <p className="text-sm text-slate-500">Mode lihat saja — persetujuan/penolakan dilakukan oleh Inspektur, Sekretaris, atau Admin.</p>
           )}
         </div>
         <form method="get" className="flex items-end gap-2">

@@ -3,14 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import type { EmployeeRole, LeaveType, PimpinanType } from "@/types";
 
 /**
- * Jenis pengajuan yang (selain Inspektur & Sekretaris — lihat getLeaveApprover, yang berwenang
- * penuh utk SEMUA jenis) juga boleh disetujui Admin utama.
- * "pengecualian_apel" digabung ke kelompok ini (sama seperti izin/sakit) sesuai permintaan:
- * pengajuan boleh disetujui pimpinan (Inspektur ATAU Sekretaris) atau Admin utama.
- */
-const SEKRETARIS_ADMIN_LEAVE_TYPES: LeaveType[] = ["izin", "sakit", "pengecualian_apel"];
-
-/**
  * Memastikan pemanggil adalah Admin yang login & aktif. Dipakai semua API edit/hapus data.
  * Otorisasi dicek di SERVER (bukan hanya menyembunyikan tombol di tampilan).
  */
@@ -83,18 +75,16 @@ export async function getViewerProfile(): Promise<{
 }
 
 /**
- * Penyetuju pengajuan cuti/izin/sakit/dinas/lembur — akun role 'pimpinan' yang aktif DAN:
- *   - bertanda can_approve_leave = true (Inspektur), ATAU
- *   - berjabatan Sekretaris (pimpinan_type = 'sekretaris', dgn fallback ke teks Jabatan lama
- *     bila pimpinan_type belum diisi).
- * Sekretaris diberi wewenang PENUH yang sama seperti Inspektur (termasuk Cuti, Dinas Dalam,
- * Dinas Luar, dan Lembur — yang sebelumnya khusus Inspektur) supaya tetap ada yang bisa
- * memproses pengajuan saat Inspektur berhalangan. Admin tidak termasuk di sini — Admin tetap
- * hanya berwenang untuk Izin/Sakit/Pengecualian Apel (lihat getLeaveTypeApprover di bawah).
+ * Penyetuju SEMUA pengajuan (cuti, izin, sakit, dinas dalam/luar daerah, pengecualian apel, lembur):
+ *   - Admin utama (role 'admin', aktif) — wewenang PENUH, setara Inspektur & Sekretaris, ATAU
+ *   - akun role 'pimpinan' aktif yang bertanda can_approve_leave = true (Inspektur), ATAU
+ *   - akun role 'pimpinan' aktif berjabatan Sekretaris (pimpinan_type = 'sekretaris', dgn
+ *     fallback ke teks Jabatan lama bila pimpinan_type belum diisi).
  * Gagal-tertutup: bila query error (mis. migrasi belum dijalankan) hasilnya null = tidak berwenang.
- * Dipakai di API (penegakan sesungguhnya, berpasangan dengan RLS is_leave_approver()) dan tampilan.
+ * Dipakai di API (penegakan sesungguhnya, berpasangan dgn RLS is_leave_approver() yang sudah
+ * ikut memasukkan Admin — lihat supabase/update-admin-approval-apel-kegiatan.sql) dan tampilan.
  */
-export async function getLeaveApprover(): Promise<{ id: string; name: string } | null> {
+export async function getLeaveApprover(): Promise<{ id: string; name: string; role: EmployeeRole } | null> {
   const supabase = createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return null;
@@ -105,8 +95,14 @@ export async function getLeaveApprover(): Promise<{ id: string; name: string } |
     .eq("id", userData.user.id)
     .single();
 
-  if (error || !data) return null;
-  if (data.role !== "pimpinan" || !data.is_active) return null;
+  if (error || !data || !data.is_active) return null;
+
+  // Admin utama: berwenang menyetujui semua jenis pengajuan.
+  if (data.role === "admin") {
+    return { id: userData.user.id, name: data.full_name as string, role: "admin" };
+  }
+
+  if (data.role !== "pimpinan") return null;
 
   const isInspektur = data.can_approve_leave === true;
   const isSekretaris =
@@ -114,49 +110,23 @@ export async function getLeaveApprover(): Promise<{ id: string; name: string } |
     (!data.pimpinan_type && ((data.position as string | null) ?? "").toLowerCase().includes("sekretaris"));
 
   if (!isInspektur && !isSekretaris) return null;
-  return { id: userData.user.id, name: data.full_name as string };
+  return { id: userData.user.id, name: data.full_name as string, role: "pimpinan" };
 }
 
 /**
- * Penyetuju pengajuan UNTUK JENIS TERTENTU (`type`):
- *  - Semua jenis (Cuti, Izin, Sakit, Dinas Dalam, Dinas Luar, Pengecualian Apel, Lembur):
- *    boleh Inspektur ATAU Sekretaris (getLeaveApprover) — masing-masing harus akun aktif.
- *  - Izin, Sakit, Pengecualian Apel: TAMBAHAN boleh juga Admin utama (role 'admin').
+ * Penyetuju pengajuan UNTUK JENIS TERTENTU (`type`). Sejak Admin utama diberi wewenang penuh,
+ * SEMUA jenis (Cuti, Izin, Sakit, Dinas Dalam, Dinas Luar, Pengecualian Apel) bisa disetujui/
+ * ditolak oleh Inspektur, Sekretaris, ATAU Admin utama (masing-masing akun aktif).
+ * Parameter `type` dipertahankan agar pemanggil lama tidak perlu diubah dan agar mudah
+ * dibatasi lagi per jenis bila kebijakan berubah.
  * Dipakai di API PATCH /api/leave/[id] dan tampilan folder Time Off, berpasangan dengan
- * RLS is_izin_sakit_approver() (lihat supabase/update-approval-izin-sakit-sekretaris-admin.sql).
- * Gagal-tertutup: error / role tak dikenal -> null (tidak berwenang).
+ * RLS is_leave_approver() / is_izin_sakit_approver().
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function getLeaveTypeApprover(
-  type: LeaveType
+  _type: LeaveType
 ): Promise<{ id: string; name: string; role: EmployeeRole } | null> {
-  // Inspektur ATAU Sekretaris selalu berwenang, untuk semua jenis pengajuan.
-  const inspektur = await getLeaveApprover();
-  if (inspektur) return { id: inspektur.id, name: inspektur.name, role: "pimpinan" };
-
-  if (!SEKRETARIS_ADMIN_LEAVE_TYPES.includes(type)) return null;
-
-  const supabase = createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return null;
-
-  const { data, error } = await supabase
-    .from("employees")
-    .select("role, is_active, full_name, position, pimpinan_type")
-    .eq("id", userData.user.id)
-    .single();
-  if (error || !data || !data.is_active) return null;
-
-  const isAdminUtama = data.role === "admin";
-  // pimpinan_type adalah sumber kebenaran (diisi lewat dropdown Jabatan Pimpinan di Kelola
-  // Pegawai). Fallback ke teks Jabatan lama (untuk akun yang belum disimpan ulang lewat form
-  // baru) supaya tidak tiba-tiba kehilangan akses.
-  const isSekretaris =
-    data.role === "pimpinan" &&
-    (data.pimpinan_type === "sekretaris" ||
-      (!data.pimpinan_type && ((data.position as string | null) ?? "").toLowerCase().includes("sekretaris")));
-
-  if (!isAdminUtama && !isSekretaris) return null;
-  return { id: userData.user.id, name: data.full_name as string, role: data.role as EmployeeRole };
+  return getLeaveApprover();
 }
 
 /**

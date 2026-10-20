@@ -89,7 +89,7 @@ export default async function AdminLeaveTypePage({
           <p className="text-sm text-slate-500">
             {isIzinSakit
               ? "Mode lihat saja — persetujuan/penolakan dilakukan oleh Inspektur, Sekretaris, atau Admin."
-              : "Mode lihat saja — persetujuan/penolakan dilakukan oleh Inspektur atau Sekretaris."}
+              : "Mode lihat saja — persetujuan/penolakan dilakukan oleh Inspektur, Sekretaris, atau Admin."}
           </p>
         )}
       </div>

@@ -10,9 +10,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ error: "Belum login." }, { status: 401 });
   }
 
-  // Ambil dulu jenis pengajuan (izin/sakit/pengecualian_apel boleh Inspektur, Sekretaris,
-  // ATAU Admin utama; cuti/dinas boleh Inspektur ATAU Sekretaris) — wewenang diperiksa
-  // PER JENIS, bukan generik.
+  // Ambil dulu jenis pengajuan. Semua jenis (cuti, izin, sakit, dinas, pengecualian apel) boleh
+  // disetujui Inspektur, Sekretaris, ATAU Admin utama.
   const { data: existing, error: existingError } = await supabase
     .from("leave_requests")
     .select("type")
@@ -26,11 +25,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   const approver = await getLeaveTypeApprover(leaveType);
   if (!approver) {
-    const message =
-      leaveType === "izin" || leaveType === "sakit" || leaveType === "pengecualian_apel"
-        ? "Hanya Inspektur, Sekretaris, atau Admin yang berwenang menyetujui/menolak pengajuan ini."
-        : "Hanya Inspektur atau Sekretaris yang berwenang menyetujui/menolak pengajuan cuti dan perjalanan dinas.";
-    return NextResponse.json({ error: message }, { status: 403 });
+    return NextResponse.json(
+      { error: "Hanya Inspektur, Sekretaris, atau Admin yang berwenang menyetujui/menolak pengajuan ini." },
+      { status: 403 }
+    );
   }
 
   const body = await request.json();

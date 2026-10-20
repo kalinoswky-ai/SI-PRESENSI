@@ -6,12 +6,12 @@ import { createClient } from "@/lib/supabase/client";
 import { useGeolocation } from "@/lib/useGeolocation";
 import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
 import ServerClock from "@/components/ServerClock";
-import { distanceInMeters, isBeforeWorkEnd, isFridayWita, witaDateKey, witaDayOfMonth, witaIsoWeekday, witaTimeHHMM } from "@/lib/geo";
+import { distanceInMeters, isApelOver, isBeforeWorkEnd, isFridayWita, witaDateKey, witaDayOfMonth, witaIsoWeekday, witaTimeHHMM } from "@/lib/geo";
 import { formatTime } from "@/lib/employee/history";
 import RecentHistory from "@/components/employee-dashboard/RecentHistory";
-import type { ApelExemptionReason, ApelLocation, AttendanceRecord, Employee, LeaveRequest, Office, WorkMode } from "@/types";
+import type { ApelExemptionReason, ApelLocation, AttendanceRecord, Employee, Kegiatan, LeaveRequest, Office, WorkMode } from "@/types";
 import { APEL_EXEMPTION_REASON_LABEL, LEAVE_TYPE_LABEL } from "@/types";
-import { CheckCircle2, MapPin, XCircle, LogIn, LogOut, CalendarClock, ScanFace, Building2, Home, ShieldCheck } from "lucide-react";
+import { CheckCircle2, MapPin, XCircle, LogIn, LogOut, CalendarClock, ScanFace, Building2, Home, ShieldCheck, Flag } from "lucide-react";
 
 type Step = "idle" | "locating" | "capturing" | "submitting" | "done";
 
@@ -28,6 +28,9 @@ export default function DashboardPage() {
   const [apelCandidates, setApelCandidates] = useState<ApelLocation[]>([]); // lokasi apel Senin/Rabu yang berlaku hari ini
   const [chosenApelId, setChosenApelId] = useState<string | null>(null);
   const [apelCancelledToday, setApelCancelledToday] = useState(false); // apel dijadwalkan tapi ditiadakan admin hari ini
+  const [apelOverNow, setApelOverNow] = useState(false); // apel pagi sudah lewat batas akhir (default 08:30 WITA)
+  const [activities, setActivities] = useState<Kegiatan[]>([]); // kegiatan terkunci hari ini yg menugaskan pegawai ini
+  const [chosenActivityId, setChosenActivityId] = useState<string | null>(null);
   const [apelExemption, setApelExemption] = useState<LeaveRequest | null>(null); // pengecualian apel yg disetujui & berlaku hari ini
 
   // Acuan jam server (bukan jam perangkat) utk mengetahui kapan jam pulang (work_end) tercapai —
@@ -64,7 +67,7 @@ export default function DashboardPage() {
       const dayOfMonth = witaDayOfMonth(serverNow);
       const todayStr = witaDateKey(serverNow);
 
-      const [{ data: emp }, { data: off }, { data: att }, { data: leave }, { data: exemption }, apelRes] = await Promise.all([
+      const [{ data: emp }, { data: off }, { data: att }, { data: leave }, { data: exemption }, apelRes, kegiatanRes] = await Promise.all([
         supabase.from("employees").select("*").eq("id", userData.user.id).single(),
         supabase.from("offices").select("*").limit(1).single(),
         supabase
@@ -98,6 +101,13 @@ export default function DashboardPage() {
         // Ambil semua lokasi apel aktif — bisa jadwal mingguan (Senin/Rabu) ATAU bulanan
         // (tanggal tetap, mis. 17 tiap bulan); yang cocok dgn hari ini disaring di bawah.
         supabase.from("apel_locations").select("*").eq("is_active", true),
+        // Kegiatan lapangan hari ini (terkunci): RLS hanya mengembalikan kegiatan tempat pegawai
+        // ini ditugaskan. Bila migrasi belum dijalankan, hasilnya error -> dianggap tidak ada.
+        supabase
+          .from("kegiatan_absensi")
+          .select("*")
+          .eq("activity_date", todayStr)
+          .eq("is_active", true),
       ]);
 
       const employeeData = emp as Employee;
@@ -111,7 +121,7 @@ export default function DashboardPage() {
       // tetap), lalu disaring lagi: hanya yang berlaku utk semua pegawai (group_name null)
       // atau sesuai kelompok OPD pegawai ybs yang ditampilkan sbg pilihan.
       const scheduledToday = ((apelRes?.data ?? []) as ApelLocation[]).filter(
-        (loc) => loc.weekday === weekday || loc.day_of_month === dayOfMonth
+        (loc) => loc.weekday === weekday || loc.day_of_month === dayOfMonth || loc.event_date === todayStr
       );
       const relevantApelRows = scheduledToday.filter(
         (loc) => loc.group_name === null || loc.group_name === employeeData?.apel_group
@@ -120,11 +130,17 @@ export default function DashboardPage() {
       // ini saja) — server melakukan pengecekan ulang yang sama, ini hanya utk tampilan.
       const apelRows = relevantApelRows.filter((loc) => loc.cancelled_date !== todayStr);
       setApelCandidates(apelRows);
+      const apelOver = isApelOver(serverNow, (off as Office | null)?.apel_end_time);
+      setApelOverNow(apelOver);
+      setActivities(((kegiatanRes?.data ?? []) as Kegiatan[]).filter((k) => k.activity_date === todayStr));
       setApelCancelledToday(relevantApelRows.length > 0 && apelRows.length === 0);
       if (apelRows.length >= 1) {
         if (exemption) {
           // Pegawai dikecualikan dari apel: langsung arahkan ke absen Kantor seperti biasa,
           // tidak perlu (dan tidak seharusnya) memilih lokasi apel.
+          setChosenApelId("__kantor__");
+        } else if (apelOver) {
+          // Apel sudah lewat batas akhir: tidak dipaksa ke lokasi apel — absen dari Kantor Inspektorat.
           setChosenApelId("__kantor__");
         } else if (apelRows.length === 1) {
           setChosenApelId(apelRows[0].id);
@@ -162,7 +178,7 @@ export default function DashboardPage() {
   const needModeChoice = hybridToday && !validIn && !chosenMode && !isApelExemptToday;
 
   // Pilihan lokasi apel (Senin/Rabu) hanya relevan sebelum absen MASUK & bila ada >1 kandidat lokasi
-  const needApelChoice = !validIn && apelCandidates.length > 1 && !chosenApelId;
+  const needApelChoice = !validIn && apelCandidates.length > 1 && !chosenApelId && !apelOverNow;
   const chosenApelLocation = apelCandidates.find((a) => a.id === chosenApelId) ?? null;
 
   function startClock(type: "in" | "out", mode?: WorkMode) {
@@ -186,7 +202,8 @@ export default function DashboardPage() {
     formData.append("descriptor", JSON.stringify(capture.descriptor));
     formData.append("selfie", capture.imageBlob, "selfie.jpg");
     formData.append("work_mode", isWfh ? "wfh" : "wfo");
-    if (pendingType === "in" && chosenApelId) formData.append("apel_location_id", chosenApelId);
+    if (pendingType === "in" && chosenApelId && chosenApelId !== "__kantor__") formData.append("apel_location_id", chosenApelId);
+    if (pendingType === "in" && chosenActivityId) formData.append("activity_id", chosenActivityId);
 
     try {
       const res = await fetch("/api/attendance/clock", { method: "POST", body: formData });
@@ -213,7 +230,13 @@ export default function DashboardPage() {
     }
   }
 
+  function startActivityClock(id: string) {
+    setChosenActivityId(id);
+    startClock("in");
+  }
+
   function reset() {
+    setChosenActivityId(null);
     setChosenMode(null);
     setStep("idle");
     setPendingType(null);
@@ -243,7 +266,14 @@ export default function DashboardPage() {
   const withinApelGeofence =
     apelDistance !== null && chosenApelLocation ? apelDistance <= chosenApelLocation.radius_meters : null;
 
-  const withinGeofence = withinOfficeGeofence || withinApelGeofence;
+  const chosenActivity = activities.find((a) => a.id === chosenActivityId) ?? null;
+  const activityDistance =
+    geo.position && chosenActivity
+      ? distanceInMeters(geo.position.latitude, geo.position.longitude, chosenActivity.latitude, chosenActivity.longitude)
+      : null;
+  const withinActivity = activityDistance !== null && chosenActivity ? activityDistance <= chosenActivity.radius_meters : null;
+
+  const withinGeofence = chosenActivity ? withinActivity : withinOfficeGeofence || withinApelGeofence;
 
   const initials =
     (employee?.full_name ?? "")
@@ -415,6 +445,11 @@ export default function DashboardPage() {
                 seperti biasa di Kantor Inspektorat.
               </p>
             )}
+            {nextType === "in" && apelOverNow && apelCandidates.length > 0 && !apelExemption && (
+              <p className="mx-auto mb-3 max-w-sm rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800">
+                Apel pagi sudah selesai. Absen masuk dilakukan dari <strong>Kantor Inspektorat</strong> seperti biasa.
+              </p>
+            )}
             <p className="mb-4 text-slate-600">
               {nextType === "in"
                 ? "Silakan lakukan absen masuk."
@@ -435,6 +470,32 @@ export default function DashboardPage() {
               {nextType === "in" ? <LogIn size={18} /> : <LogOut size={18} />}
               {nextType === "in" ? "Absen Masuk" : "Absen Pulang"}
             </button>
+            {nextType === "in" && activities.length > 0 && (
+              <div className="mx-auto mt-5 max-w-sm space-y-2 border-t border-slate-100 pt-4 text-left">
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                  <Flag size={16} className="text-brand-600" /> Kegiatan hari ini (khusus peserta)
+                </p>
+                <p className="text-xs text-slate-500">
+                  Anda ditugaskan pada kegiatan di bawah. Absen masuk dari lokasi kegiatan hanya bisa dilakukan
+                  pada jam yang ditentukan dan di dalam radius lokasi kegiatan.
+                </p>
+                {activities.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => startActivityClock(a.id)}
+                    className="flex w-full items-center gap-2 rounded-xl border border-brand-100 bg-white/60 px-3 py-3 text-left text-brand-900 transition hover:bg-white"
+                  >
+                    <MapPin size={20} className="shrink-0" />
+                    <span className="min-w-0">
+                      <span className="block font-semibold">{a.name}</span>
+                      <span className="block text-xs text-slate-500">
+                        Absen dibuka {a.start_time}–{a.end_time} WITA
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )
       ) : step === "done" ? (
@@ -464,6 +525,13 @@ export default function DashboardPage() {
                 <span className="text-slate-600">
                   Absen pulang boleh dilakukan dari mana saja (mis. sedang audit/tugas lapangan).
                   Titik lokasi Anda saat ini ({Math.round(distance)} m dari kantor) akan dicatat.
+                </span>
+              )
+            ) : chosenActivity ? (
+              activityDistance !== null && (
+                <span className={withinActivity ? "text-emerald-700" : "text-amber-600"}>
+                  Jarak ke lokasi kegiatan &quot;{chosenActivity.name}&quot;: {Math.round(activityDistance)}m{" "}
+                  {withinActivity ? "(dalam radius)" : `(di luar radius, maksimal ${chosenActivity.radius_meters}m)`}
                 </span>
               )
             ) : isWfh ? (

@@ -181,3 +181,38 @@ export function formatDistance(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)} m`;
   return `${(meters / 1000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} km`;
 }
+
+/** "HH:MM" -> menit sejak 00:00. Format tak valid -> NaN. */
+export function hhmmToMinutes(hhmm: string | null | undefined): number {
+  if (!hhmm) return NaN;
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/** Menit sejak 00:00 menurut WITA (Asia/Makassar) dari sebuah waktu server. */
+export function witaMinutesOfDay(date: Date): number {
+  return hhmmToMinutes(witaTimeHHMM(date));
+}
+
+/** Batas akhir apel pagi bawaan (WITA) bila belum diatur di Pengaturan. */
+export const DEFAULT_APEL_END_TIME = "08:30";
+
+/**
+ * Apakah apel pagi sudah LEWAT menurut jam server (WITA)? True bila waktu sekarang >= batas akhir
+ * apel (default 08:30). Setelah itu pegawai tidak diarahkan lagi ke lokasi apel — absen masuk
+ * dilakukan dari Kantor Inspektorat seperti biasa.
+ */
+export function isApelOver(serverTime: Date, apelEndHHMM: string | null | undefined): boolean {
+  const end = hhmmToMinutes(apelEndHHMM || DEFAULT_APEL_END_TIME);
+  if (Number.isNaN(end)) return false;
+  return witaMinutesOfDay(serverTime) >= end;
+}
+
+/** Apakah waktu sekarang (WITA) berada dalam jendela [start, end] (inklusif), format "HH:MM". */
+export function isWithinWitaWindow(serverTime: Date, startHHMM: string, endHHMM: string): boolean {
+  const now = witaMinutesOfDay(serverTime);
+  const start = hhmmToMinutes(startHHMM);
+  const end = hhmmToMinutes(endHHMM);
+  if ([now, start, end].some(Number.isNaN)) return false;
+  return now >= start && now <= end;
+}

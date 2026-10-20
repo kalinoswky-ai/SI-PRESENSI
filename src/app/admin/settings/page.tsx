@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useGeolocation } from "@/lib/useGeolocation";
 import ChangePasswordForm from "@/components/ChangePasswordForm";
 import type { ApelLocation, Office } from "@/types";
+import { WEEKDAY_LABEL } from "@/types";
 import { witaDateKey } from "@/lib/geo";
 import {
   MapPin,
@@ -48,9 +49,10 @@ export default function SettingsPage() {
   const [apelError, setApelError] = useState<string | null>(null);
   const [newApel, setNewApel] = useState({
     name: "",
-    scheduleType: "weekday" as "weekday" | "monthly",
-    weekday: 1 as 1 | 3,
+    scheduleType: "weekday" as "weekday" | "monthly" | "once",
+    weekday: 1 as 1 | 2 | 3 | 4 | 5,
     day_of_month: 17,
+    event_date: "",
     group_name: "",
     latitude: "",
     longitude: "",
@@ -107,6 +109,11 @@ export default function SettingsPage() {
     const lat = parseFloat(newApel.latitude);
     const lng = parseFloat(newApel.longitude);
     const isMonthly = newApel.scheduleType === "monthly";
+    const isOnce = newApel.scheduleType === "once";
+    if (isOnce && !/^\d{4}-\d{2}-\d{2}$/.test(newApel.event_date)) {
+      setApelError("Pilih tanggal apel sewaktu-waktu.");
+      return;
+    }
     if (!newApel.name.trim() || Number.isNaN(lat) || Number.isNaN(lng)) {
       setApelError("Nama lokasi dan koordinat (latitude/longitude) wajib diisi.");
       return;
@@ -117,9 +124,11 @@ export default function SettingsPage() {
     }
     const { error } = await supabase.from("apel_locations").insert({
       name: newApel.name.trim(),
-      weekday: isMonthly ? null : newApel.weekday,
+      weekday: isMonthly || isOnce ? null : newApel.weekday,
       day_of_month: isMonthly ? newApel.day_of_month : null,
-      group_name: isMonthly || newApel.weekday === 3 ? newApel.group_name.trim() || null : null,
+      event_date: isOnce ? newApel.event_date : null,
+      // Kelompok OPD hanya bermakna bila apel dibatasi per kelompok; Senin = semua pegawai.
+      group_name: isMonthly || isOnce || newApel.weekday !== 1 ? newApel.group_name.trim() || null : null,
       latitude: lat,
       longitude: lng,
       radius_meters: newApel.radius_meters,
@@ -127,12 +136,12 @@ export default function SettingsPage() {
     });
     if (error) {
       // Kolom belum ada di database / cache skema PostgREST belum dimuat ulang → beri petunjuk perbaikan yang jelas.
-      const schemaProblem = /schema cache|day_of_month|cancelled_date|apel_group/i.test(error.message);
+      const schemaProblem = /schema cache|day_of_month|event_date|cancelled_date|apel_group|weekday_check/i.test(error.message);
       setApelError(
         "Gagal menambah lokasi: " +
           error.message +
           (schemaProblem
-            ? " — Database belum diperbarui. Jalankan file supabase/fix-apel-lokasi-lengkap.sql di Supabase > SQL Editor, lalu coba lagi."
+            ? " — Database belum diperbarui. Jalankan file supabase/fix-apel-lokasi-lengkap.sql lalu supabase/update-admin-approval-apel-kegiatan.sql di Supabase > SQL Editor, lalu coba lagi."
             : "")
       );
       return;
@@ -142,6 +151,7 @@ export default function SettingsPage() {
       scheduleType: "weekday",
       weekday: 1,
       day_of_month: 17,
+      event_date: "",
       group_name: "",
       latitude: "",
       longitude: "",
@@ -180,6 +190,7 @@ export default function SettingsPage() {
         work_start: office.work_start,
         work_end: office.work_end,
         friday_hybrid: office.friday_hybrid,
+        apel_end_time: office.apel_end_time || "08:30",
         wa_notify_enabled: office.wa_notify_enabled,
         wa_provider: office.wa_provider,
         wa_api_token: office.wa_api_token,
@@ -342,6 +353,19 @@ export default function SettingsPage() {
               onChange={(e) => update("work_end", e.target.value)}
             />
           </div>
+          <div>
+            <label className="label">Batas Akhir Apel Pagi</label>
+            <input
+              type="time"
+              className="input"
+              value={office.apel_end_time || "08:30"}
+              onChange={(e) => update("apel_end_time", e.target.value)}
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Setelah jam ini pada hari apel (Senin/Rabu/tgl 17/apel sewaktu-waktu), absen masuk dilakukan dari
+              Kantor Inspektorat seperti biasa.
+            </p>
+          </div>
         </div>
 
         <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -374,7 +398,7 @@ export default function SettingsPage() {
           <h2 className="font-semibold text-slate-800">Lokasi Apel Pagi</h2>
         </div>
         <p className="text-sm text-slate-500">
-          Setiap Senin, apel pagi dilaksanakan di Kantor Bupati — berlaku untuk semua pegawai.
+          Jadwal apel bisa mingguan (Senin–Jumat), bulanan (tanggal tetap), atau <strong>sewaktu-waktu</strong> pada tanggal tertentu (mis. mendadak diminta apel di Kantor Bupati hari Selasa/Kamis/Jumat). Setiap Senin, apel pagi dilaksanakan di Kantor Bupati — berlaku untuk semua pegawai.
           Setiap Rabu, apel dilaksanakan per kelompok perangkat daerah (OPD) — isi &quot;Kelompok
           OPD&quot; agar hanya berlaku untuk pegawai dengan kelompok apel yang sama (diatur di menu
           Kelola Pegawai). Selain jadwal mingguan tsb, tersedia juga jadwal <strong>bulanan</strong>{" "}
@@ -422,9 +446,13 @@ export default function SettingsPage() {
                           }}
                         />
                       </div>
+                    ) : loc.event_date ? (
+                      <span className="text-xs font-semibold uppercase text-sky-600" title="Apel sewaktu-waktu (sekali)">
+                        {loc.event_date}
+                      </span>
                     ) : (
                       <span className="text-xs font-semibold uppercase text-slate-400">
-                        {loc.weekday === 1 ? "Senin" : "Rabu"}
+                        {WEEKDAY_LABEL[loc.weekday ?? 0] ?? "-"}
                       </span>
                     )}
                     <input
@@ -434,7 +462,7 @@ export default function SettingsPage() {
                     />
                     <input
                       className="input"
-                      placeholder={loc.weekday === 3 || isMonthly ? "Kelompok OPD" : "(semua pegawai)"}
+                      placeholder={loc.weekday === 1 ? "(semua pegawai)" : "Kelompok OPD"}
                       disabled={loc.weekday === 1}
                       defaultValue={loc.group_name ?? ""}
                       onBlur={(e) =>
@@ -520,11 +548,12 @@ export default function SettingsPage() {
               className="input"
               value={newApel.scheduleType}
               onChange={(e) =>
-                setNewApel((n) => ({ ...n, scheduleType: e.target.value as "weekday" | "monthly" }))
+                setNewApel((n) => ({ ...n, scheduleType: e.target.value as "weekday" | "monthly" | "once" }))
               }
             >
-              <option value="weekday">Mingguan (Senin/Rabu)</option>
+              <option value="weekday">Mingguan (Senin–Jumat)</option>
               <option value="monthly">Bulanan (tanggal tetap)</option>
+              <option value="once">Sewaktu-waktu (tanggal tertentu)</option>
             </select>
           </div>
           {newApel.scheduleType === "weekday" ? (
@@ -533,11 +562,24 @@ export default function SettingsPage() {
               <select
                 className="input"
                 value={newApel.weekday}
-                onChange={(e) => setNewApel((n) => ({ ...n, weekday: Number(e.target.value) as 1 | 3 }))}
+                onChange={(e) => setNewApel((n) => ({ ...n, weekday: Number(e.target.value) as 1 | 2 | 3 | 4 | 5 }))}
               >
                 <option value={1}>Senin</option>
+                <option value={2}>Selasa</option>
                 <option value={3}>Rabu</option>
+                <option value={4}>Kamis</option>
+                <option value={5}>Jumat</option>
               </select>
+            </div>
+          ) : newApel.scheduleType === "once" ? (
+            <div>
+              <label className="label">Tanggal Apel</label>
+              <input
+                type="date"
+                className="input"
+                value={newApel.event_date}
+                onChange={(e) => setNewApel((n) => ({ ...n, event_date: e.target.value }))}
+              />
             </div>
           ) : (
             <div>

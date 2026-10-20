@@ -8,13 +8,15 @@ import {
   formatDistance,
   isLateClockIn,
   isBeforeWorkEnd,
+  isApelOver,
+  isWithinWitaWindow,
   witaDateKey,
   witaDayOfMonth,
   witaIsoWeekday,
   witaTimeHHMM,
 } from "@/lib/geo";
 import { notifyLateAttendance } from "@/lib/notifications/notify";
-import type { ApelExemptionReason, ApelLocation, Office, WorkMode } from "@/types";
+import type { ApelExemptionReason, ApelLocation, Kegiatan, Office, WorkMode } from "@/types";
 import { APEL_EXEMPTION_REASON_LABEL } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -34,6 +36,7 @@ export async function POST(request: NextRequest) {
   const selfieFile = formData.get("selfie") as File | null;
   const requestedMode: WorkMode = formData.get("work_mode") === "wfh" ? "wfh" : "wfo";
   const requestedApelLocationId = (formData.get("apel_location_id") as string | null) || null;
+  const requestedActivityId = (formData.get("activity_id") as string | null) || null;
 
   if (
     !["in", "out"].includes(type) ||
@@ -111,7 +114,7 @@ export async function POST(request: NextRequest) {
     const { data: apelRows } = await supabase.from("apel_locations").select("*").eq("is_active", true);
 
     const scheduledToday = ((apelRows ?? []) as ApelLocation[]).filter(
-      (loc) => loc.weekday === weekday || loc.day_of_month === dayOfMonth
+      (loc) => loc.weekday === weekday || loc.day_of_month === dayOfMonth || loc.event_date === todayKey
     );
     const relevant = scheduledToday.filter(
       (loc) => loc.group_name === null || loc.group_name === employee.apel_group
@@ -119,7 +122,11 @@ export async function POST(request: NextRequest) {
     const candidates = relevant.filter((loc) => loc.cancelled_date !== todayKey);
     apelCancelledToday = relevant.length > 0 && candidates.length === 0;
 
-    if (candidates.length === 1) {
+    // Setelah batas akhir apel (default 08:30 WITA) pegawai TIDAK diarahkan lagi ke lokasi apel —
+    // absen masuk dari Kantor Inspektorat seperti biasa. Lokasi apel tetap diterima bila pegawai
+    // sengaja memilihnya (mis. apel molor), tetapi tidak dipaksakan.
+    const apelOver = isApelOver(serverTime, office.apel_end_time);
+    if (candidates.length === 1 && (!apelOver || requestedApelLocationId === candidates[0].id)) {
       apelLocation = candidates[0];
     } else if (candidates.length > 1 && requestedApelLocationId) {
       apelLocation = candidates.find((c) => c.id === requestedApelLocationId) ?? null;
@@ -153,6 +160,48 @@ export async function POST(request: NextRequest) {
     apelExemptionReason = (exemptionRow?.apel_exemption_reason as ApelExemptionReason | null) ?? null;
   }
   const apelExempted = Boolean(apelExemptionReason);
+
+  // 3c-2. Absen di lokasi KEGIATAN (terkunci). Hanya absen MASUK, hanya bila klien meminta kegiatan
+  //       tertentu, dan SEMUA syarat diperiksa ulang di server: kegiatan aktif, tanggalnya hari ini,
+  //       jam sekarang dalam jendela waktu, pegawai terdaftar sbg peserta, dan berada dalam radius
+  //       lokasi kegiatan. Bila ada yang tidak terpenuhi, absen DITOLAK (tidak jatuh diam-diam ke
+  //       aturan lain) agar tidak ada yang bisa absen sembarangan di luar kantor.
+  let activity: Kegiatan | null = null;
+  let activityOk = false;
+  let activityError: string | null = null;
+  let activityDistance: number | null = null;
+  if (type === "in" && requestedActivityId) {
+    const { data: act } = await supabase
+      .from("kegiatan_absensi")
+      .select("*")
+      .eq("id", requestedActivityId)
+      .maybeSingle();
+    const { data: member } = await supabase
+      .from("kegiatan_peserta")
+      .select("employee_id")
+      .eq("kegiatan_id", requestedActivityId)
+      .eq("employee_id", userId)
+      .maybeSingle();
+    activity = (act as Kegiatan | null) ?? null;
+    if (!activity || !member) {
+      activityError = "Anda tidak terdaftar sebagai peserta kegiatan ini.";
+    } else if (!activity.is_active) {
+      activityError = `Kegiatan "${activity.name}" sudah dinonaktifkan.`;
+    } else if (activity.activity_date !== todayKey) {
+      activityError = `Kegiatan "${activity.name}" bukan untuk hari ini.`;
+    } else if (!isWithinWitaWindow(serverTime, activity.start_time, activity.end_time)) {
+      activityError = `Absen kegiatan "${activity.name}" hanya dibuka pukul ${activity.start_time}–${activity.end_time} WITA (sekarang ${witaTimeHHMM(
+        serverTime
+      )} WITA).`;
+    } else {
+      activityDistance = distanceInMeters(latitude, longitude, activity.latitude, activity.longitude);
+      if (activityDistance <= activity.radius_meters) {
+        activityOk = true;
+      } else {
+        activityError = `Lokasi di luar radius kegiatan "${activity.name}" (${Math.round(activityDistance)}m, maksimal ${activity.radius_meters}m).`;
+      }
+    }
+  }
 
   // 3d. Tentukan mode kerja. WFH (bebas radius kantor SEPANJANG HARI) HANYA berlaku bila hari
   //     Jumat & kebijakan Jumat hybrid aktif (sesuai pilihan pegawai). Pengecualian apel BUKAN
@@ -206,7 +255,10 @@ export async function POST(request: NextRequest) {
     rejectReason = `Absen pulang belum bisa dilakukan. Jam pulang yang ditentukan adalah pukul ${office.work_end} WITA — saat ini baru pukul ${witaTimeHHMM(
       serverTime
     )} WITA. Absen pulang hanya dapat dilakukan tepat pukul ${office.work_end} WITA atau setelahnya.`;
-  } else if (type === "in" && workMode === "wfo" && !apelExempted && !withinGeofence) {
+  } else if (type === "in" && requestedActivityId && activityError) {
+    status = "rejected";
+    rejectReason = activityError;
+  } else if (type === "in" && workMode === "wfo" && !apelExempted && !withinGeofence && !activityOk) {
     status = "rejected";
     if (apelCancelledToday) {
       rejectReason = `Apel pagi hari ini ditiadakan, presensi kembali dilakukan di Kantor Inspektorat. Lokasi Anda di luar radius kantor (jarak ${Math.round(
@@ -242,7 +294,9 @@ export async function POST(request: NextRequest) {
   // hanya disebut "hadir di lokasi apel" bila pegawai benar-benar berada di radiusnya.
   let locationLabel: string | null = null;
   if (type === "in") {
-    if (apelCancelledToday && !apelLocation) {
+    if (activityOk && activity) {
+      locationLabel = `Kegiatan: ${activity.name}`;
+    } else if (apelCancelledToday && !apelLocation) {
       locationLabel = "Apel ditiadakan — absen di Kantor Inspektorat";
     } else if (apelLocation && withinApelGeofence) {
       locationLabel = apelLocation.name;
@@ -263,7 +317,8 @@ export async function POST(request: NextRequest) {
     else locationLabel = `Pulang di luar kantor / lapangan (${formatDistance(distance)} dari kantor)`;
   }
 
-  const isLate = type === "in" ? isLateClockIn(serverTime, office.work_start, office.friday_hybrid) : false;
+  // Absen lewat kegiatan terkunci (di jendela waktu yang ditetapkan pimpinan) tidak dihitung terlambat.
+  const isLate = type === "in" && !activityOk ? isLateClockIn(serverTime, office.work_start, office.friday_hybrid) : false;
 
   // 7. Simpan record absensi (RLS memastikan employee_id = auth.uid())
   const { data: record, error: insertError } = await supabase
@@ -275,7 +330,7 @@ export async function POST(request: NextRequest) {
       latitude,
       longitude,
       distance_meters: Math.round(distance * 100) / 100,
-      within_geofence: withinGeofence,
+      within_geofence: withinGeofence || activityOk,
       face_match: faceMatch,
       face_distance: Math.round(fDistance * 1000) / 1000,
       selfie_url: selfieUrl,
@@ -284,6 +339,7 @@ export async function POST(request: NextRequest) {
       is_late: isLate,
       work_mode: workMode,
       apel_location_id: apelLocation?.id ?? null,
+      activity_id: activityOk ? activity?.id ?? null : null,
       location_label: locationLabel,
     })
     .select()

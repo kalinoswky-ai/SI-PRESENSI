@@ -388,3 +388,19 @@ supabase/schema.sql           -> skema database + RLS + storage buckets (+ migra
 vercel.json                   -> jadwal Vercel Cron untuk laporan otomatis BKPSDM
 public/models/                -> model face-api.js (tinyFaceDetector, landmark68, recognition)
 ```
+
+## Pembaruan: Absen Pulang dari Lokasi Tugas Lapangan
+
+Untuk pegawai yang sedang **tugas luar / lapangan** dan tidak wajib kembali ke kantor:
+
+- **Admin → Activities (Kegiatan Lapangan)** — form kegiatan kini punya opsi **Absen pulang dari lokasi tugas**
+  beserta jam **Absen pulang dibuka** (WITA). Opsi bisa diubah kapan saja pada daftar kegiatan
+  (centang **Pulang di lokasi** + jam). Kegiatan lama tidak berubah (default nonaktif).
+- **Dashboard pegawai** — peserta kegiatan melihat kartu **Pulang dari lokasi tugas** saat tiba waktu absen pulang.
+  Tombol aktif mulai jam yang ditetapkan, **tanpa menunggu jam pulang kantor (`work_end`)**.
+- **Validasi di server** (`/api/attendance/clock`): peserta terdaftar, kegiatan aktif & untuk hari ini, opsi pulang
+  aktif, jam sudah tercapai, dan posisi di dalam radius lokasi kegiatan, serta wajah cocok. Bila gagal, absen ditolak
+  dengan alasan yang jelas. Label tercatat: `Pulang dari lokasi tugas: <nama kegiatan>` (tampil di log admin,
+  riwayat, dan Excel) dan `activity_id` ikut disimpan sebagai jejak audit.
+- Absen pulang biasa (tanpa memilih kegiatan) **tidak berubah**: tetap bebas lokasi, tetapi baru bisa setelah `work_end`.
+- Jalankan `supabase/update-kegiatan-pulang-lokasi-tugas.sql` sekali di SQL Editor (idempotent).

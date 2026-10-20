@@ -404,3 +404,18 @@ Untuk pegawai yang sedang **tugas luar / lapangan** dan tidak wajib kembali ke k
   riwayat, dan Excel) dan `activity_id` ikut disimpan sebagai jejak audit.
 - Absen pulang biasa (tanpa memilih kegiatan) **tidak berubah**: tetap bebas lokasi, tetapi baru bisa setelah `work_end`.
 - Jalankan `supabase/update-kegiatan-pulang-lokasi-tugas.sql` sekali di SQL Editor (idempotent).
+
+## Pembaruan: Otorisasi Admin Utama — Masuk Lebih Awal
+
+Bila pegawai yang cuti/izin/sakit/dinas (pengajuan sudah **disetujui**) ternyata masuk kerja lebih cepat dari jadwal:
+
+- **Admin → Time Off → (jenis pengajuan) → tab Disetujui** — tombol **Atur Masuk Lebih Awal** (hanya tampil untuk
+  **Admin utama**, dan selama masa pengajuan belum berakhir). Admin memilih **tanggal masuk kembali** (hari ini atau
+  tanggal berikutnya dalam masa pengajuan) dan **alasan** (wajib).
+- Mulai tanggal itu pegawai **dapat & wajib absen** seperti biasa. Masa pengajuan dipangkas (`end_date` = tanggal masuk − 1);
+  bila tanggal masuk = hari pertama pengajuan, pengajuan berstatus **Dibatalkan**. Dashboard, kalender, rekap, dan status
+  "Tanpa Berita" otomatis mengikuti karena memakai rentang tanggal pengajuan yang sama.
+- Dicek ulang di server (`POST /api/leave/[id]/resume`): hanya role `admin` aktif, pengajuan harus berstatus disetujui,
+  tanggal tidak boleh lampau (gunakan Koreksi Absensi untuk itu). Tercatat di **Riwayat Perubahan** (`leave.resume_early`);
+  bila jejak audit gagal tersimpan, perubahan dibatalkan. Tanggal akhir semula tersimpan di `original_end_date`.
+- Jalankan `supabase/update-masuk-lebih-awal.sql` sekali di SQL Editor (idempotent).

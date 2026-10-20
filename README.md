@@ -43,6 +43,23 @@ tergantung pihak ketiga.
 - Vercel Cron — penjadwal laporan otomatis harian/mingguan/bulanan
 - Deploy: GitHub → Vercel (CI/CD otomatis setiap push)
 
+## Pembaruan: Approval Admin Penuh, Apel Fleksibel, Absen Kegiatan Terkunci
+
+- **Admin utama = penyetuju semua pengajuan** — Cuti, Izin, Sakit, Dinas Dalam/Luar Daerah, Pengecualian
+  Apel, Lembur, dan Koreksi Absensi kini bisa disetujui/ditolak Admin utama, selain Inspektur & Sekretaris.
+  Dicek di API (`getLeaveApprover`) **dan** RLS database (`is_leave_approver()`). Lembur milik sendiri tetap
+  tidak bisa disetujui sendiri.
+- **Apel Senin–Jumat + sewaktu-waktu** — Pengaturan → Lokasi Apel: jenis jadwal *Mingguan (Senin–Jumat)*,
+  *Bulanan (tanggal tetap, mis. 17)*, atau *Sewaktu-waktu (tanggal tertentu)* untuk apel mendadak di Kantor
+  Bupati. Lokasi Kantor Bupati / Perpustakaan dll. diinput sebagai lokasi apel.
+- **Batas akhir apel (default 08:30 WITA)** — Pengaturan → Jam Kerja. Lewat jam itu pada hari apel (Senin/Rabu/
+  tgl 17/sewaktu-waktu), pegawai tidak lagi diarahkan ke lokasi apel dan absen masuk dari Kantor Inspektorat.
+- **Kegiatan Lapangan (menu Admin → Activities)** — Admin/Inspektur/Sekretaris membuat kegiatan: tanggal, jam
+  absen dibuka–ditutup, titik lokasi + radius, dan **daftar peserta**. Di Dashboard hanya peserta yang melihat
+  tombol kegiatan. Server memeriksa ulang: peserta terdaftar, kegiatan aktif, tanggal hari ini, jam dalam
+  jendela, dan dalam radius — jika gagal, absen ditolak. Absen kegiatan tidak dihitung terlambat.
+- Jalankan `supabase/update-admin-approval-apel-kegiatan.sql` sekali di SQL Editor (idempotent).
+
 ## Pembaruan: Pimpinan Dipecah Jadi Inspektur / Sekretaris (Otorisasi Langsung Aktif)
 
 - **Menu Tambah Pegawai & Kelola Pegawai** kini punya dropdown baru **Jabatan Pimpinan** yang

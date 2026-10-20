@@ -59,6 +59,9 @@ export interface Office {
   work_start: string; // "07:00"
   work_end: string; // "14:30"
   friday_hybrid: boolean;
+  /** Batas akhir apel pagi, "HH:MM" WITA (default "08:30"). Setelah jam ini, pada hari apel pegawai
+   *  tidak lagi diarahkan ke lokasi apel — absen masuk dilakukan dari Kantor Inspektorat seperti biasa. */
+  apel_end_time?: string | null;
   updated_at: string;
 
   // Notifikasi keterlambatan
@@ -102,6 +105,7 @@ export interface AttendanceRecord {
   work_mode: WorkMode; // 'wfh' hanya mungkin pada hari Jumat (kebijakan hybrid)
   apel_location_id: string | null; // lokasi apel (mingguan Senin/Rabu atau bulanan) yang dipakai (jika ada)
   location_label: string | null; // nama lokasi apel, utk jejak audit di riwayat/laporan
+  activity_id?: string | null; // kegiatan lapangan (terkunci) yang dipakai utk absen masuk, bila ada
   created_at: string;
   edited_at?: string | null; // terisi bila data dikoreksi Admin
   edit_note?: string | null; // alasan koreksi
@@ -113,8 +117,9 @@ export interface AttendanceRecord {
 export interface ApelLocation {
   id: string;
   name: string;
-  weekday: 1 | 3 | null; // 1 = Senin, 3 = Rabu; null bila jadwal bulanan (lihat day_of_month)
+  weekday: 1 | 2 | 3 | 4 | 5 | null; // 1 = Senin ... 5 = Jumat; null bila jadwal bulanan / sekali (lihat di bawah)
   day_of_month: number | null; // 1-31; terisi utk apel bulanan pada tanggal tetap tiap bulan, selain weekday
+  event_date?: string | null; // "YYYY-MM-DD"; terisi utk apel SEWAKTU-WAKTU (sekali, pada tanggal tertentu, hari apa pun)
   group_name: string | null; // null = berlaku utk semua pegawai (khusus Senin & apel bulanan)
   latitude: number;
   longitude: number;
@@ -233,5 +238,33 @@ export interface AttendanceCorrection {
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_note: string | null;
+  created_at: string;
+}
+
+export const WEEKDAY_LABEL: Record<number, string> = {
+  1: "Senin",
+  2: "Selasa",
+  3: "Rabu",
+  4: "Kamis",
+  5: "Jumat",
+};
+
+/**
+ * Kegiatan lapangan yang MENGUNCI lokasi absen masuk: hanya pegawai yang ditugaskan (peserta),
+ * pada tanggal kegiatan, dalam jendela waktu tertentu, dan di dalam radius lokasi kegiatan yang
+ * bisa absen dari lokasi tsb. Dibuat/dikelola oleh Admin utama / Inspektur / Sekretaris.
+ */
+export interface Kegiatan {
+  id: string;
+  name: string;
+  description: string | null;
+  activity_date: string; // "YYYY-MM-DD"
+  start_time: string; // "HH:MM" WITA — absen baru dibuka mulai jam ini
+  end_time: string; // "HH:MM" WITA — absen ditutup setelah jam ini
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+  is_active: boolean;
+  created_by: string | null;
   created_at: string;
 }

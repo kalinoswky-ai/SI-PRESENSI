@@ -21,6 +21,7 @@ import {
   Eye,
   KeyRound,
   FilePen,
+  Flag,
 } from "lucide-react";
 
 const mainLinks = [
@@ -29,6 +30,7 @@ const mainLinks = [
   { href: "/admin/leave", label: "Time Off", sublabel: "Cuti / Izin / Dinas", icon: Briefcase },
   { href: "/admin/overtime", label: "Overtime", sublabel: "Lembur", icon: Timer },
   { href: "/admin/corrections", label: "Corrections", sublabel: "Koreksi Absensi", icon: FilePen },
+  { href: "/admin/kegiatan", label: "Activities", sublabel: "Kegiatan Lapangan", icon: Flag },
   { href: "/admin/reports", label: "Reports", sublabel: "Laporan", icon: BarChart3 },
   { href: "/admin/employees", label: "People", sublabel: "Pegawai", icon: Users },
 ];

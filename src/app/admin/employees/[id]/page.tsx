@@ -7,6 +7,7 @@ import FaceCamera, { FaceCaptureResult } from "@/components/FaceCamera";
 import type { Employee, PimpinanType } from "@/types";
 import { CheckCircle2, ScanFace, Clock, XCircle } from "lucide-react";
 import DeleteEmployeeButton from "../DeleteEmployeeButton";
+import ResetPasswordButton from "../ResetPasswordButton";
 
 export default function EmployeeDetailPage() {
   const params = useParams<{ id: string }>();
@@ -374,6 +375,19 @@ export default function EmployeeDetailPage() {
           </div>
         )}
       </div>
+
+      {employee.id !== selfId && employee.role !== "admin" && (
+        <div className="card space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Lupa Password</p>
+            <p className="text-sm text-slate-500">
+              Jika pegawai lupa password, berikan password baru. Password lama tidak bisa dilihat; pegawai
+              wajib menggantinya saat login berikutnya.
+            </p>
+          </div>
+          <ResetPasswordButton id={employee.id} name={employee.full_name} />
+        </div>
+      )}
 
       {employee.id !== selfId && (
         <div className="card space-y-3 border-red-200">

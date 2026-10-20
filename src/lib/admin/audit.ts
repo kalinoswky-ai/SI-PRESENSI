@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface AuditEntry {
   action: string;
-  target_type: "attendance" | "employee";
+  target_type: "attendance" | "employee" | "leave";
   target_id?: string | null;
   target_label?: string | null;
   reason?: string | null;

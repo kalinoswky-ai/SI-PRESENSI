@@ -1,10 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { getLeaveTypeApprover } from "@/lib/admin/auth";
+import { getLeaveTypeApprover, requireAdmin } from "@/lib/admin/auth";
+import { witaDateKey } from "@/lib/geo";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { APEL_EXEMPTION_REASON_LABEL, LEAVE_TYPE_LABEL } from "@/types";
 import type { ApelExemptionReason, LeaveRequest, LeaveType } from "@/types";
 import LeaveActions from "../LeaveActions";
+import ResumeWorkAction from "../ResumeWorkAction";
 
 // Selalu baca data terbaru dari Supabase (jangan di-cache Next.js).
 export const dynamic = "force-dynamic";
@@ -16,6 +18,7 @@ const TABS = [
   { key: "pending", label: "Menunggu" },
   { key: "approved", label: "Disetujui" },
   { key: "rejected", label: "Ditolak" },
+  { key: "cancelled", label: "Dibatalkan" },
   { key: "all", label: "Semua" },
 ];
 
@@ -42,6 +45,9 @@ export default async function AdminLeaveTypePage({
   // Izin, Sakit, Pengecualian Apel: Inspektur, Sekretaris, ATAU Admin utama dapat menyetujui/menolak.
   // Cuti, Dinas Dalam, Dinas Luar: Inspektur ATAU Sekretaris.
   const canApprove = (await getLeaveTypeApprover(type)) !== null;
+  // Otorisasi "masuk lebih awal": khusus Admin utama.
+  const isMainAdmin = (await requireAdmin()) !== null;
+  const todayKey = witaDateKey(new Date());
   const isIzinSakit = type === "izin" || type === "sakit" || type === "pengecualian_apel";
 
   // ROOT CAUSE bug "Time Off kosong": tabel leave_requests punya DUA foreign key ke employees
@@ -74,6 +80,7 @@ export default async function AdminLeaveTypePage({
     pending: rows.filter((r) => r.status === "pending").length,
     approved: rows.filter((r) => r.status === "approved").length,
     rejected: rows.filter((r) => r.status === "rejected").length,
+    cancelled: rows.filter((r) => r.status === "cancelled").length,
     all: rows.length,
   };
   const records = status === "all" ? rows : rows.filter((r) => r.status === status);
@@ -177,10 +184,12 @@ export default async function AdminLeaveTypePage({
                       ? "bg-amber-50 text-amber-700"
                       : r.status === "approved"
                       ? "bg-emerald-50 text-emerald-700"
+                      : r.status === "cancelled"
+                      ? "bg-slate-100 text-slate-600"
                       : "bg-red-50 text-red-600"
                   }`}
                 >
-                  {r.status === "pending" ? "Menunggu" : r.status === "approved" ? "Disetujui" : "Ditolak"}
+                  {r.status === "pending" ? "Menunggu" : r.status === "approved" ? "Disetujui" : r.status === "cancelled" ? "Dibatalkan" : "Ditolak"}
                 </span>
               </div>
 
@@ -189,6 +198,22 @@ export default async function AdminLeaveTypePage({
                 <p className="text-xs font-medium text-amber-600">
                   {isIzinSakit ? "Menunggu persetujuan Inspektur/Sekretaris/Admin." : "Menunggu persetujuan Inspektur/Sekretaris."}
                 </p>
+              )}
+              {r.original_end_date && (
+                <p className="rounded-lg bg-teal-50 px-3 py-2 text-xs text-teal-800">
+                  <strong>Masuk lebih awal</strong> — diotorisasi Admin utama
+                  {r.status === "cancelled"
+                    ? ` (pengajuan dibatalkan; semula s/d ${formatDate(r.original_end_date)})`
+                    : `; masa pengajuan dipangkas, semula s/d ${formatDate(r.original_end_date)}`}
+                  {r.resume_note ? `. Alasan: ${r.resume_note}` : ""}
+                </p>
+              )}
+              {isMainAdmin && r.status === "approved" && r.type !== "pengecualian_apel" && r.end_date >= todayKey && (
+                <ResumeWorkAction
+                  id={r.id}
+                  minDate={r.start_date > todayKey ? r.start_date : todayKey}
+                  maxDate={r.end_date}
+                />
               )}
               {r.status !== "pending" && r.review_note && (
                 <p className="text-xs text-slate-400">Catatan: {r.review_note}</p>

@@ -17,6 +17,7 @@ const LEAVE_STATUS_LABEL: Record<LeaveStatus, string> = {
   pending: "Menunggu",
   approved: "Disetujui",
   rejected: "Ditolak",
+  cancelled: "Dibatalkan",
 };
 
 const TODAY_FMT = new Intl.DateTimeFormat("id-ID", {

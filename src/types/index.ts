@@ -142,7 +142,9 @@ export interface ApelLocation {
 // dari buildLeaveDayMap (lib/reports/absenceStatus.ts) — bila pegawai ybs tetap tidak absen
 // sama sekali pada hari itu, harinya tetap tercatat "Tanpa Berita", bukan dianggap cuti.
 export type LeaveType = "cuti" | "izin" | "sakit" | "dinas_dalam" | "dinas_luar" | "pengecualian_apel";
-export type LeaveStatus = "pending" | "approved" | "rejected";
+// "cancelled" = pengajuan disetujui lalu dibatalkan Admin utama karena pegawai masuk lebih awal
+// (khusus leave_requests; lembur/koreksi tidak memakainya).
+export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
 
 /** Alasan pengecualian apel — dipilih pegawai saat mengajukan (khusus type = "pengecualian_apel"). */
 export type ApelExemptionReason = "sakit" | "hamil" | "alasan_khusus";
@@ -175,6 +177,11 @@ export interface LeaveRequest {
   // Khusus type = dinas_dalam / dinas_luar (null utk cuti/izin/sakit/pengecualian_apel).
   destination?: string | null; // tujuan/lokasi penugasan
   letter_number?: string | null; // nomor Surat Perintah Tugas (SPT), opsional
+  // Terisi bila Admin utama memajukan tanggal masuk (masuk lebih awal) — lihat update-masuk-lebih-awal.sql.
+  original_end_date?: string | null; // tanggal akhir semula
+  resumed_by?: string | null;
+  resumed_at?: string | null;
+  resume_note?: string | null;
   // Khusus type = pengecualian_apel (null utk jenis lain).
   apel_exemption_reason?: ApelExemptionReason | null;
   employees?: Pick<Employee, "full_name" | "nip" | "position">;
